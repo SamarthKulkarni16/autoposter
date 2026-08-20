@@ -24,19 +24,28 @@ def open_account(platform, lang):
     is already running instead of using the requested profile.
     """
     account = config.ACCOUNTS[platform][lang]
-    profile_dir = config.PROFILES_DIR / account["profile"]
-    if not profile_dir.exists():
-        raise StepFailed(
-            f"No saved login for {platform}/{lang}. "
-            f"Run: python3 setup_profile.py {platform} {lang}"
-        )
 
-    proc = subprocess.Popen([
-        config.BROWSER_BIN,
-        "-no-remote",
-        "-P", account["profile"],
-        account["url"],
-    ])
+    if "profile_path" in account:
+        proc = subprocess.Popen([
+            config.BROWSER_BIN,
+            "-no-remote",
+            "-profile", account["profile_path"],
+            account["url"],
+        ])
+    else:
+        profile_dir = config.PROFILES_DIR / account["profile"]
+        if not profile_dir.exists():
+            raise StepFailed(
+                f"No saved login for {platform}/{lang}. "
+                f"Run: python3 setup_profile.py {platform} {lang}"
+            )
+        proc = subprocess.Popen([
+            config.BROWSER_BIN,
+            "-no-remote",
+            "-P", account["profile"],
+            account["url"],
+        ])
+
     human.wait(config.LOAD_WAIT_SEC, config.LOAD_WAIT_SEC + 2)
     return proc
 

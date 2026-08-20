@@ -27,7 +27,7 @@ ENABLED_PLATFORMS = ["youtube"]
 # "url" = where the account should land, logged in, ready to post.
 ACCOUNTS = {
     "youtube": {
-        "en": {"profile": "youtube_en", "url": "https://studio.youtube.com"},
+        "en": {"profile": "youtube_en", "url": "https://studio.youtube.com", "profile_path": "/home/ubuntu/.config/mozilla/firefox/g7dhshsu.default-release"},
         "hi": {"profile": "youtube_hi", "url": "https://studio.youtube.com"},
         "ar": {"profile": "youtube_ar", "url": "https://studio.youtube.com"},
         "pt": {"profile": "youtube_pt", "url": "https://studio.youtube.com"},
