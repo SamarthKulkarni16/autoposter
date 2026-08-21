@@ -66,6 +66,8 @@ def main():
         engine.click_text("Create", region=engine.band_region(nav_y))
         shot("02_after_create_click")
 
+        import human_actions as human
+        human.wait(0.5, 1)
         engine.click_text("Upload videos")
         shot("03_after_upload_videos_click")
 
