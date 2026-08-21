@@ -31,7 +31,7 @@ def post(ctx):
     # Firefox tab label "YouTube Creator Studio" (which fuzzy-matches
     # "Create" and previously got clicked by mistake while the page was
     # still blank underneath).
-    _, nav_y = engine.locate_text("Studio", timeout=90)
+    _, nav_y = engine.locate_text("Studio", region=engine.below_chrome_region(), timeout=90)
     engine.click_text("Create", region=engine.band_region(nav_y))
     human.wait(0.5, 1)
     engine.click_text("Upload videos")

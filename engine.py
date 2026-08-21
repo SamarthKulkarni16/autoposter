@@ -135,6 +135,26 @@ def open_file_via_dialog(path, poll_interval=5, max_wait=40):
     human.wait(1, 2)
 
 
+def below_chrome_region(chrome_height=150):
+    """
+    Full width/height region starting below the browser's title bar + tab row
+    + address bar stack. Anchor searches (e.g. locate_text('Studio', ...) used
+    to confirm the real page has loaded before clicking Create) MUST be
+    scoped to this region.
+
+    Without it, OCR can match the anchor text sitting in the browser's own
+    chrome instead of the actual page -- this happened directly: the Firefox
+    tab title reads "YouTube Creator Studio", so an unscoped search for
+    "Studio" matched the tab label (visible instantly) rather than waiting
+    for the real in-page Studio logo to render, defeating the whole point of
+    using it as a "page is actually ready" signal. 150px comfortably clears
+    the title bar + tab row + address bar on this VM's Firefox/GNOME setup.
+    """
+    import pyautogui
+    w, h = pyautogui.size()
+    return (0, chrome_height, w, h - chrome_height)
+
+
 def locate_text(label_text, region=None, timeout=60, poll=2):
     """
     Like wait_for_text, but returns the element's (x, y) center point instead
