@@ -99,19 +99,52 @@ def select_all_and_type(text):
     human.type_text(text)
 
 
-def open_file_via_dialog(path, wait_for_dialog=2.0):
+def open_file_via_dialog(path, poll_interval=5, max_wait=40):
     """
     GTK file-chooser dialogs support Ctrl+L to reveal a location bar you can
     type a path into directly — far more reliable than clicking through a
     folder tree, and immune to icon/theme changes.
+
+    Two things this does that a bare Ctrl+L doesn't:
+      1) Polls for the dialog actually being on screen (via the 'Recent'
+         sidebar label, always present in a GTK file chooser) instead of a
+         fixed sleep, since Studio can take a while to spawn the dialog.
+      2) Clicks that sidebar label first before sending Ctrl+L. A real OS
+         mouse click reliably grabs window focus on this VM; a keyboard
+         event with no prior click does not (this was the root cause of
+         the old focus bug — wmctrl/xdotool can't see or activate the
+         xdg-desktop-portal dialog, but a genuine click on it works fine).
     """
-    time.sleep(wait_for_dialog)
+    deadline = time.time() + max_wait
+    dialog_point = None
+    while time.time() < deadline:
+        dialog_point = vision.find_text("Recent", timeout=poll_interval)
+        if dialog_point:
+            break
+    if not dialog_point:
+        raise StepFailed(f"File dialog never appeared after {max_wait}s wait")
+
+    x, y = dialog_point
+    human.click(x, y)
+    human.wait(0.3, 0.6)
     human.key("ctrl", "l")
     human.wait(0.3, 0.6)
     human.type_text(str(path))
     human.wait(0.2, 0.4)
     human.key("Return")
     human.wait(1, 2)
+
+
+def top_nav_region(height_fraction=0.12):
+    """
+    Returns (x, y, w, h) covering just the top nav bar, full width. Use this
+    to scope OCR text-matches like 'Create' so they can't accidentally match
+    similar-looking text further down the page (e.g. the analytics table's
+    'Created' column header).
+    """
+    import pyautogui
+    w, h = pyautogui.size()
+    return (0, 0, w, int(h * height_fraction))
 
 
 def wait_for_text(label_text, region=None, timeout=60, poll=2):

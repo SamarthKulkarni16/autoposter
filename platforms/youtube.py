@@ -22,8 +22,9 @@ def post(ctx):
         "tags": "...",      # optional, comma separated
     }
     """
-    # Kick off upload
-    engine.click_text("Create")
+    # Kick off upload. Region-scoped to the top nav bar so this can't
+    # accidentally match "Created" in the analytics table further down.
+    engine.click_text("Create", region=engine.top_nav_region())
     human.wait(0.5, 1)
     engine.click_text("Upload videos")
 
