@@ -22,9 +22,17 @@ def post(ctx):
         "tags": "...",      # optional, comma separated
     }
     """
-    # Kick off upload. Region-scoped to the top nav bar so this can't
-    # accidentally match "Created" in the analytics table further down.
-    engine.click_text("Create", region=engine.top_nav_region())
+    # Wait for the actual in-page nav (not just the browser tab/chrome) to be
+    # ready, using the "Studio" logo as a reliable in-page anchor -- it only
+    # exists once the page has really rendered, unlike the browser's own tab
+    # label which is visible the whole time the page is loading. Then scope
+    # the "Create" click to a tight band around that same row: this avoids
+    # both the analytics table's "Created" column further down AND the
+    # Firefox tab label "YouTube Creator Studio" (which fuzzy-matches
+    # "Create" and previously got clicked by mistake while the page was
+    # still blank underneath).
+    _, nav_y = engine.locate_text("Studio", timeout=90)
+    engine.click_text("Create", region=engine.band_region(nav_y))
     human.wait(0.5, 1)
     engine.click_text("Upload videos")
 

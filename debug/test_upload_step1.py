@@ -61,7 +61,9 @@ def main():
     shot("01_studio_loaded")
 
     try:
-        engine.click_text("Create", region=engine.top_nav_region())
+        _, nav_y = engine.locate_text("Studio", timeout=90)
+        shot("01b_page_actually_ready")
+        engine.click_text("Create", region=engine.band_region(nav_y))
         shot("02_after_create_click")
 
         engine.click_text("Upload videos")

@@ -135,16 +135,39 @@ def open_file_via_dialog(path, poll_interval=5, max_wait=40):
     human.wait(1, 2)
 
 
-def top_nav_region(height_fraction=0.12):
+def locate_text(label_text, region=None, timeout=60, poll=2):
     """
-    Returns (x, y, w, h) covering just the top nav bar, full width. Use this
-    to scope OCR text-matches like 'Create' so they can't accidentally match
-    similar-looking text further down the page (e.g. the analytics table's
-    'Created' column header).
+    Like wait_for_text, but returns the element's (x, y) center point instead
+    of just True/False, so it can be used as a position anchor.
+    """
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        pt = vision.find_text(label_text, region=region, timeout=poll)
+        if pt:
+            return pt
+        time.sleep(poll)
+    raise StepFailed(f"Timed out waiting for '{label_text}'")
+
+
+def band_region(anchor_y, half_height=45):
+    """
+    Full-width horizontal band centered on anchor_y. Use this to scope a text
+    search to one specific row of the actual page UI once you know its
+    y-coordinate, instead of guessing a percentage of the whole screen.
+
+    A percentage-of-screen guess (the old top_nav_region()) can accidentally
+    include the browser's own tab/title bar above the page content -- this
+    bit us directly: the Firefox tab label "YouTube Creator Studio" fuzzy-
+    matched a click_text('Create') search while the real page was still
+    loading underneath, causing a click on the browser chrome instead of the
+    in-page button. Anchoring to a real in-page element's position (e.g. via
+    locate_text('Studio', ...) for the Studio logo, which only exists once
+    the page has actually rendered) avoids that whole class of bug.
     """
     import pyautogui
-    w, h = pyautogui.size()
-    return (0, 0, w, int(h * height_fraction))
+    w, _ = pyautogui.size()
+    y = max(0, anchor_y - half_height)
+    return (0, y, w, half_height * 2)
 
 
 def wait_for_text(label_text, region=None, timeout=60, poll=2):
