@@ -244,6 +244,20 @@ re-diagnosing:
 
 ## 6. Current test harness (non-destructive, safe to re-run freely)
 
+**Gotcha to know before you start debugging interactively:** several
+functions here have deliberately long timeouts for production robustness —
+`locate_text(timeout=90)`, `click_text`'s internal retry window (~24s),
+`open_file_via_dialog`'s 40s dialog-appearance poll. When running
+interactively (e.g. via an agent like Cline sitting in a terminal), these
+can look exactly like a hang — there's no output for tens of seconds while
+it's legitimately waiting/retrying before reporting failure. **This already
+caused real confusion in a prior session** (a human mistook a normal
+90s-timeout wait for a frozen AI agent). If you're debugging interactively:
+add a fast/debug mode that cuts these timeouts way down (e.g. 90s → 10s) and
+prints a visible line on every retry/wait ("still waiting, Ns elapsed...")
+so it's obvious it's waiting on purpose, not stuck. Only use the full
+production timeouts for a final verification run, not routine debugging.
+
 `autoposter/debug/test_upload_step1.py` — runs the upload flow only through
 the "Details" screen (video file picked, title typed), deliberately WITHOUT
 clicking Next/Publish, so re-running it never actually publishes anything.
