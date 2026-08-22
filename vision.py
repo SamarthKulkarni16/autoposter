@@ -45,8 +45,14 @@ def find_text(label_text, region=None, min_ratio=0.72, timeout=8, poll=0.5):
     Fuzzy match so minor rendering/case differences don't cause false failures.
     Returns (x, y) center point in screen coords, or None.
     """
+    # Import here to avoid circular imports
+    from engine import _is_fast_mode, _fast_timeout, _fast_poll, _progress_wait
+
+    timeout = _fast_timeout(timeout, 3)
+    poll = _fast_poll(poll, 0.3)
     deadline = time.time() + timeout
     target = label_text.strip().lower()
+    start_time = time.time()
 
     while time.time() < deadline:
         frame = _screenshot()
@@ -80,6 +86,8 @@ def find_text(label_text, region=None, min_ratio=0.72, timeout=8, poll=0.5):
             bx, by, bw, bh = best_box
             return (int(bx + bw / 2), int(by + bh / 2))
 
+        elapsed = time.time() - start_time
+        _progress_wait(f"still looking for OCR text '{label_text}'", elapsed)
         time.sleep(poll)
 
     return None
@@ -90,6 +98,11 @@ def find_template(template_name, region=None, threshold=0.82, scales=None, timeo
     Multi-scale template match against templates/<template_name>.png.
     Use for icon-only buttons with no reliable text (e.g. a bare '+' icon).
     """
+    # Import here to avoid circular imports
+    from engine import _is_fast_mode, _fast_timeout, _fast_poll, _progress_wait
+
+    timeout = _fast_timeout(timeout, 3)
+    poll = _fast_poll(poll, 0.3)
     scales = scales or [0.85, 0.9, 0.95, 1.0, 1.05, 1.1, 1.15]
     tpl_path = TEMPLATES_DIR / f"{template_name}.png"
     if not tpl_path.exists():
@@ -98,6 +111,7 @@ def find_template(template_name, region=None, threshold=0.82, scales=None, timeo
     template = cv2.imread(str(tpl_path), cv2.IMREAD_GRAYSCALE)
 
     deadline = time.time() + timeout
+    start_time = time.time()
     while time.time() < deadline:
         frame = _screenshot()
         crop = frame
@@ -123,6 +137,8 @@ def find_template(template_name, region=None, threshold=0.82, scales=None, timeo
             cy = oy + best_loc[1] + best_size[1] // 2
             return (int(cx), int(cy))
 
+        elapsed = time.time() - start_time
+        _progress_wait(f"still looking for template '{template_name}'", elapsed)
         time.sleep(poll)
 
     return None
@@ -133,7 +149,13 @@ def find(label_text=None, template_name=None, region=None, timeout=8):
     Try OCR text first, then template fallback. This dual-path approach is
     what makes recipes survive platform redesigns long-term.
     """
+    # Import here to avoid circular imports
+    from engine import _is_fast_mode, _fast_timeout, _progress_wait
+
+    timeout = _fast_timeout(timeout, 3)
     point = None
+    start_time = time.time()
+
     if label_text:
         point = find_text(label_text, region=region, timeout=timeout)
     if point is None and template_name:
@@ -142,6 +164,8 @@ def find(label_text=None, template_name=None, region=None, timeout=8):
     if point is None:
         frame = _screenshot()
         shot_path = _save_failure((label_text or template_name or "unknown").replace(" ", "_"), frame)
+        elapsed = time.time() - start_time
+        _progress_wait(f"failed to find '{label_text or template_name}' after {elapsed:.0f}s", elapsed)
         raise ElementNotFound(
             f"Could not find '{label_text or template_name}'. Screenshot saved to {shot_path}"
         )

@@ -11,6 +11,8 @@ live desktop session, same as any other GUI automation here):
 import sys
 import json
 import cv2
+import os
+import argparse
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -18,6 +20,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import engine
 import config
 import vision
+
+def parse_args():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description="Non-destructive YouTube upload test")
+    parser.add_argument("--fast", action="store_true", help="Enable fast/debug mode with shorter timeouts")
+    return parser.parse_args()
 
 SHOT_DIR = Path(__file__).parent / "shots"
 SHOT_DIR.mkdir(exist_ok=True)
@@ -51,6 +59,11 @@ def find_test_video():
 
 
 def main():
+    args = parse_args()
+    if args.fast:
+        print("[info] Fast/debug mode enabled")
+        os.environ["DEBUG_FAST"] = "1"
+
     video_path, meta = find_test_video()
     print(f"[info] Using test video: {video_path}")
 

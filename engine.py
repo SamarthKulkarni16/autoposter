@@ -4,11 +4,44 @@ Recipes (platforms/*.py) should only call these, never raw pyautogui,
 so all timing/retry/failure-logging behavior stays consistent everywhere.
 """
 
+import os
 import time
 import subprocess
 import config
 import vision
 import human_actions as human
+
+
+def _is_fast_mode():
+    """Check if fast/debug mode is enabled via env var or CLI flag."""
+    return os.environ.get("DEBUG_FAST", "").lower() in ("1", "true", "yes", "on")
+
+
+def _fast_timeout(default_timeout, fast_timeout=None):
+    """Return fast timeout if in fast mode, otherwise default."""
+    if _is_fast_mode():
+        return fast_timeout if fast_timeout is not None else min(default_timeout, 10)
+    return default_timeout
+
+
+def _fast_retries(default_retries, fast_retries=1):
+    """Return fast retry count if in fast mode, otherwise default."""
+    if _is_fast_mode():
+        return fast_retries
+    return default_retries
+
+
+def _fast_poll(default_poll, fast_poll=None):
+    """Return fast poll interval if in fast mode, otherwise default."""
+    if _is_fast_mode():
+        return fast_poll if fast_poll is not None else default_poll
+    return default_poll
+
+
+def _progress_wait(message, elapsed, interval=3):
+    """Print progress message every `interval` seconds while waiting."""
+    if _is_fast_mode() or elapsed % interval == 0:
+        print(f"[wait] {message}, {elapsed:.0f}s elapsed...")
 
 
 class StepFailed(Exception):
@@ -64,7 +97,10 @@ def close_account(proc):
 
 
 def click_text(label_text, region=None, timeout=8, retries=2):
+    timeout = _fast_timeout(timeout, 3)
+    retries = _fast_retries(retries, 1)
     last_err = None
+    start_time = time.time()
     for attempt in range(retries + 1):
         try:
             x, y = vision.find(label_text=label_text, region=region, timeout=timeout)
@@ -72,12 +108,17 @@ def click_text(label_text, region=None, timeout=8, retries=2):
             return
         except vision.ElementNotFound as e:
             last_err = e
+            elapsed = time.time() - start_time
+            _progress_wait(f"still looking for '{label_text}' (attempt {attempt + 1}/{retries + 1})", elapsed)
             human.wait(1, 2)
     raise StepFailed(f"click_text('{label_text}') failed after retries: {last_err}")
 
 
 def click_template(template_name, region=None, timeout=8, retries=2):
+    timeout = _fast_timeout(timeout, 3)
+    retries = _fast_retries(retries, 1)
     last_err = None
+    start_time = time.time()
     for attempt in range(retries + 1):
         try:
             x, y = vision.find(template_name=template_name, region=region, timeout=timeout)
@@ -85,6 +126,8 @@ def click_template(template_name, region=None, timeout=8, retries=2):
             return
         except vision.ElementNotFound as e:
             last_err = e
+            elapsed = time.time() - start_time
+            _progress_wait(f"still looking for template '{template_name}' (attempt {attempt + 1}/{retries + 1})", elapsed)
             human.wait(1, 2)
     raise StepFailed(f"click_template('{template_name}') failed after retries: {last_err}")
 
@@ -115,12 +158,17 @@ def open_file_via_dialog(path, poll_interval=5, max_wait=40):
          the old focus bug — wmctrl/xdotool can't see or activate the
          xdg-desktop-portal dialog, but a genuine click on it works fine).
     """
+    max_wait = _fast_timeout(max_wait, 10)
+    poll_interval = _fast_poll(poll_interval, 1)
     deadline = time.time() + max_wait
     dialog_point = None
+    start_time = time.time()
     while time.time() < deadline:
         dialog_point = vision.find_text("Recent", timeout=poll_interval)
         if dialog_point:
             break
+        elapsed = time.time() - start_time
+        _progress_wait(f"still waiting for file dialog to appear", elapsed)
     if not dialog_point:
         raise StepFailed(f"File dialog never appeared after {max_wait}s wait")
 
@@ -160,11 +208,16 @@ def locate_text(label_text, region=None, timeout=60, poll=2):
     Like wait_for_text, but returns the element's (x, y) center point instead
     of just True/False, so it can be used as a position anchor.
     """
+    timeout = _fast_timeout(timeout, 10)
+    poll = _fast_poll(poll, 1)
     deadline = time.time() + timeout
+    start_time = time.time()
     while time.time() < deadline:
         pt = vision.find_text(label_text, region=region, timeout=poll)
         if pt:
             return pt
+        elapsed = time.time() - start_time
+        _progress_wait(f"still looking for '{label_text}'", elapsed)
         time.sleep(poll)
     raise StepFailed(f"Timed out waiting for '{label_text}'")
 
@@ -192,10 +245,15 @@ def band_region(anchor_y, half_height=45):
 
 def wait_for_text(label_text, region=None, timeout=60, poll=2):
     """Blocks until label_text appears (e.g. waiting for upload/processing)."""
+    timeout = _fast_timeout(timeout, 10)
+    poll = _fast_poll(poll, 1)
     deadline = time.time() + timeout
+    start_time = time.time()
     while time.time() < deadline:
         pt = vision.find_text(label_text, region=region, timeout=poll)
         if pt:
             return True
+        elapsed = time.time() - start_time
+        _progress_wait(f"still waiting for '{label_text}'", elapsed)
         time.sleep(poll)
     raise StepFailed(f"Timed out waiting for '{label_text}'")
