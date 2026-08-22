@@ -89,3 +89,29 @@ those updates alongside your code changes. This document is what lets
 *anyone* (human or AI) pick this up cold if you also run out of
 context/credits — keep it accurate so the next agent doesn't waste time
 either.
+
+## Running continuously without waiting on the human
+
+The human wants this to keep going on its own as much as possible — don't
+make them babysit task restarts. Concretely:
+
+1. **Self-monitor your own context size.** Long single tasks that accumulate
+   huge tool-output history (screenshots, OCR dumps, long logs) get slow or
+   silently hang, especially right when starting a big new sub-task — this
+   already happened once and was mistaken for a freeze. Before it gets that
+   large, proactively wrap up: update Section 8 of the briefing doc with
+   exactly where things stand, commit and push, then immediately continue
+   into a fresh task/context yourself if you have a mechanism to do that
+   (e.g. a "start new task" / handoff tool) — don't wait for the human to
+   click anything if you're able to trigger it yourself.
+2. **If you have no way to self-restart**, keep working as long as you can
+   productively, keep Section 8 continuously accurate as you go (not just at
+   the end), and when you do have to stop, make the final message to the
+   human unambiguous and copy-pasteable: e.g. "Stopped here, context got
+   large. Start a new task with: 'git pull, read
+   docs/CONTINUATION_BRIEFING.md Section 8, continue from there.'" — so
+   resuming is a single copy-paste, not something they have to think about.
+3. Either way: the only thing that should ever require the human's active
+   judgment (not just a click) is the Publish-click safety checkpoint above,
+   or the VM/RDP being disconnected (nothing you can do about that
+   remotely). Everything else should be zero-effort for them.
