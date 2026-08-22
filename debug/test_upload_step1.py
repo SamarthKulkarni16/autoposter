@@ -63,6 +63,20 @@ def main():
     try:
         _, nav_y = engine.locate_text("Studio", region=engine.below_chrome_region(), timeout=90)
         shot("01b_page_actually_ready")
+
+        # DIAGNOSTIC: mark exactly where OCR thinks "Create" is, before
+        # clicking, so we can visually confirm the click target is actually
+        # on the button and not just close to it.
+        create_pt = vision.find_text("Create", region=engine.band_region(nav_y))
+        print(f"[diag] 'Create' OCR match at: {create_pt}")
+        if create_pt:
+            marked = vision._screenshot()
+            cv2.circle(marked, create_pt, 12, (0, 0, 255), 3)
+            cv2.imwrite(str(SHOT_DIR / "01c_create_target_marked.png"), marked)
+            print("[diag] saved marked target screenshot")
+        else:
+            print("[diag] WARNING: 'Create' not found at all in this diagnostic pass")
+
         engine.click_text("Create", region=engine.band_region(nav_y))
         shot("02_after_create_click")
 
