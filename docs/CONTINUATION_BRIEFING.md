@@ -258,6 +258,20 @@ prints a visible line on every retry/wait ("still waiting, Ns elapsed...")
 so it's obvious it's waiting on purpose, not stuck. Only use the full
 production timeouts for a final verification run, not routine debugging.
 
+**Another gotcha, specific to long-running agent sessions (e.g. Cline):**
+running this entire debugging effort as one continuous task accumulates a
+huge amount of context (terminal output, OCR dumps, screenshots) over time.
+Many model providers get noticeably slower — or silently hang while
+retrying — as context grows large, especially right at the boundary between
+sub-tasks when a big new planning call is made. **This already happened and
+was mistaken for a frozen agent.** The fix: don't run this as one
+ever-growing task. Start a fresh task for each phase of work, and have it
+read this document's Section 8 instead of relying on carried-over
+conversation history — that's the whole reason Section 8 exists, keep it
+accurate and let it be the continuity mechanism instead of a huge context
+window. When a phase of work is done, update Section 8, commit, and stop —
+don't keep tacking more work onto an already-long task.
+
 `autoposter/debug/test_upload_step1.py` — runs the upload flow only through
 the "Details" screen (video file picked, title typed), deliberately WITHOUT
 clicking Next/Publish, so re-running it never actually publishes anything.
