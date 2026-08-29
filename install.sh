@@ -6,8 +6,8 @@ set -e
 echo "Installing Python packages..."
 pip3 install -r requirements.txt
 
-echo "Installing real Google Chrome (Playwright's 'chrome' channel) + OS deps..."
-python3 -m playwright install --with-deps chrome
+echo "Installing Chromium (Playwright bundled build -- real Chrome has no ARM64 Linux build) + OS deps..."
+python3 -m playwright install --with-deps chromium
 
 echo ""
 echo "Done. Next step — log in to each account (type these one at a time):"

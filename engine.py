@@ -65,16 +65,18 @@ def _shutdown():
 
 def open_account(platform, lang):
     """
-    Launches a persistent Chrome context (real installed Google Chrome, via
-    Playwright's "chrome" channel — not Playwright's own bundled Chromium)
-    using the dedicated profile for this (platform, lang) account, already
-    logged in, pointed at its start URL. Returns the Page — pass it to
+    Launches a persistent Chromium context (Playwright's own bundled
+    Chromium — NOT the "chrome" channel; real Google Chrome has no official
+    ARM64 Linux build, and this VM is an Oracle Ampere/ARM64 instance, so
+    channel="chrome" hard-fails there with "Failed to install chrome") using
+    the dedicated profile for this (platform, lang) account, already logged
+    in, pointed at its start URL. Returns the Page — pass it to
     close_account() when done.
 
-    Chrome, not Firefox: Google's sign-in flow actively fingerprints and
+    Chromium, not Firefox: Google's sign-in flow actively fingerprints and
     blocks browsers it detects as automated/embedded ("This browser or app
     may not be secure"), and that block triggers far more reliably against
-    Playwright's patched Firefox build than against real Chrome running
+    Playwright's patched Firefox build than against Chromium running headed
     with --disable-blink-features=AutomationControlled.
 
     A persistent context IS the profile directory (cookies, local storage,
@@ -95,7 +97,6 @@ def open_account(platform, lang):
     context = _playwright().chromium.launch_persistent_context(
         user_data_dir,
         headless=config.HEADLESS,
-        channel="chrome",
         viewport={"width": 1440, "height": 900},
         args=["--disable-blink-features=AutomationControlled"],
     )

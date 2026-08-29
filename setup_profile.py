@@ -14,12 +14,12 @@ pointed at the account's start URL. Log in by hand (including any 2FA/OTP),
 then come back to this terminal and press Enter — the profile directory is
 created automatically the first time.
 
-Chrome, not Firefox: Google's sign-in flow blocks Playwright's patched
-Firefox build far more often than real Chrome running with
---disable-blink-features=AutomationControlled (see engine.py for detail).
-Requires Google Chrome to be installed on this machine (install.sh does
-this) — Playwright's "chrome" channel drives the real browser, it doesn't
-ship its own copy of it the way it does for Chromium/Firefox/WebKit.
+Chromium (Playwright's own bundled build), not Firefox and not the
+"chrome" channel: Google's sign-in flow blocks Playwright's patched
+Firefox build far more often than Chromium (see engine.py for detail).
+Real Google Chrome (channel="chrome") isn't an option on an ARM64 VM --
+Google has no official Chrome build for Linux ARM64. install.sh handles
+downloading a matching Chromium build for this machine.
 """
 
 import sys
@@ -45,7 +45,7 @@ def main():
     else:
         user_data_dir = str(config.PROFILES_DIR / account["profile"])
 
-    print(f"Opening Chrome for {platform}/{lang} -> {account['url']}")
+    print(f"Opening Chromium for {platform}/{lang} -> {account['url']}")
     print(f"Profile directory: {user_data_dir}")
     print("Log in fully (2FA/OTP included), then come back here and press Enter.")
 
@@ -53,7 +53,6 @@ def main():
         context = pw.chromium.launch_persistent_context(
             user_data_dir,
             headless=False,
-            channel="chrome",
             viewport={"width": 1440, "height": 900},
             args=["--disable-blink-features=AutomationControlled"],
         )

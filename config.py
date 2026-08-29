@@ -9,12 +9,12 @@ OUTBOX_DIR = BASE_DIR / "outbox"
 PROFILES_DIR = BASE_DIR / "profiles"
 PROFILES_DIR.mkdir(exist_ok=True)
 
-# Playwright's persistent-context Chrome (real installed Google Chrome, via
-# the "chrome" channel) reads/writes a normal Chrome user-data-dir, so
-# accounts logged in once under profiles/<name>/ stay logged in on every
-# future run. Chrome, not Firefox: Google's own sign-in flow blocks
-# Playwright's patched Firefox build far more often than real Chrome
-# (see engine.open_account docstring).
+# Playwright's persistent-context Chromium (its own bundled build --
+# real Chrome has no official ARM64 Linux build, which this VM is) reads/
+# writes a normal Chromium user-data-dir, so accounts logged in once under
+# profiles/<name>/ stay logged in on every future run. Chromium, not
+# Firefox: Google's own sign-in flow blocks Playwright's patched Firefox
+# build far more often (see engine.open_account docstring).
 HEADLESS = False          # Studio's upload UI behaves more reliably headed
 LOAD_WAIT_SEC = 3         # short settle pause after navigation, before interacting
 
@@ -30,7 +30,7 @@ ENABLED_PLATFORMS = ["youtube"]
 # --- Accounts -------------------------------------------------------------
 # One entry per (platform, lang). "profile" = folder name under profiles/,
 # created automatically the first time you run setup_profile.py for it.
-# "profile_path" = an absolute path to an existing Chrome user-data-dir to reuse
+# "profile_path" = an absolute path to an existing Chromium user-data-dir to reuse
 # instead (e.g. one already logged in outside this tool). "url" = where the
 # account should land, logged in, ready to post.
 ACCOUNTS = {
@@ -43,7 +43,7 @@ ACCOUNTS = {
         # of this application. Please create a new profile."). We also then
         # hit Google actively blocking Playwright's Firefox at sign-in
         # ("This browser or app may not be secure"), so this account now
-        # uses a fresh Chrome profile like every other account; log in once
+        # uses a fresh Chromium profile like every other account; log in once
         # with: python3 setup_profile.py youtube en
         "en": {"profile": "youtube_en", "url": "https://studio.youtube.com"},
         "hi": {"profile": "youtube_hi", "url": "https://studio.youtube.com"},

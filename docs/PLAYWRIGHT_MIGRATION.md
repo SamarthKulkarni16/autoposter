@@ -30,7 +30,7 @@ That whole category of bug is gone now, structurally, not patched around:
   are no longer needed for that part (a light retry wrapper is kept in
   `engine.click_text`/`click_role` for genuine transient failures).
 - **Logins persist the same way.** `open_account()` launches a Playwright
-  *persistent context* pointed at the same profile directory format Chrome
+  *persistent context* pointed at the same profile directory format Chromium
   itself uses, so accounts logged in once via `setup_profile.py` stay logged
   in, same as before.
 
@@ -42,11 +42,13 @@ intent), and the one-recipe-per-platform shape in `platforms/*.py`.
 Setup is simpler too: no more `tesseract-ocr`/`scrot`/`xdotool`/X11
 requirement — see the updated `install.sh` and `README.md`.
 
-## Follow-up: Firefox -> Chrome (same week)
+## Follow-up: Firefox -> Chromium (same week)
 
 The first pass used Playwright's bundled Firefox. Two real problems showed
-up in practice, so accounts now use Playwright's `channel="chrome"` (the
-actual, real, installed Google Chrome) instead:
+up in practice, so accounts now use Playwright's bundled Chromium instead
+(a real `channel="chrome"` was tried first, but Google has no official
+Chrome build for Linux ARM64, and this VM is an Oracle Ampere/ARM64
+instance -- it failed to install outright):
 
 1. Reusing an existing real Firefox profile broke, because that profile had
    been touched by a newer system Firefox than the one Playwright bundles —
@@ -54,7 +56,7 @@ actual, real, installed Google Chrome) instead:
 2. Even with a fresh profile, Google's own sign-in flow blocked the login
    outright ("This browser or app may not be secure") — Playwright's
    patched Firefox build gets fingerprinted as automated far more reliably
-   than real Chrome does, especially with
+   than Chromium does, especially with
    `--disable-blink-features=AutomationControlled` set.
 
 The old task docs in `docs/archive-ocr-era/` are kept for history but
