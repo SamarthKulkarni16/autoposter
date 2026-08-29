@@ -34,12 +34,13 @@ def post(ctx, page):
     engine.click_role(page, "button", "Create", timeout=90000)
     human.wait(0.5, 1)
 
-    # Grab the locator BEFORE clicking it -- once clicked, the dropdown
-    # closes and this element becomes hidden, so it can't be re-located
-    # afterwards. upload_file() does the click itself, inside the
-    # file-chooser interception.
-    upload_trigger = engine.locate(page, text="Upload videos", timeout=8000)
-    engine.upload_file(page, upload_trigger, ctx["video_path"])
+    # "Upload videos" only switches Studio to the upload dialog (a dropzone
+    # + a "SELECT FILES" button) -- it does NOT itself open the native file
+    # picker. The "SELECT FILES" button inside that dialog is what does,
+    # so that's the real file-chooser trigger.
+    engine.click_text(page, "Upload videos")
+    select_files_trigger = engine.locate(page, text="SELECT FILES", timeout=15000)
+    engine.upload_file(page, select_files_trigger, ctx["video_path"])
 
     # Wait for it to register the upload before touching title/desc fields
     engine.wait_for_text(page, "Details", timeout=90000)
