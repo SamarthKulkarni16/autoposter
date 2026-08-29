@@ -36,7 +36,7 @@ def _is_fast_mode():
     return os.environ.get("DEBUG_FAST", "").lower() in ("1", "true", "yes", "on")
 
 
-def _fast_timeout(default_ms, fast_ms=8000):
+def _fast_timeout(default_ms, fast_ms=12000):
     return fast_ms if _is_fast_mode() else default_ms
 
 
@@ -103,7 +103,26 @@ def open_account(platform, lang):
     page = context.pages[0] if context.pages else context.new_page()
     page.goto(account["url"], wait_until="domcontentloaded")
     human.wait(config.LOAD_WAIT_SEC, config.LOAD_WAIT_SEC + 2)
+    _dismiss_browser_warning(page)
     return page
+
+
+def _dismiss_browser_warning(page):
+    """
+    Some sites (YouTube Studio included) show an 'unsupported/old browser'
+    interstitial to Playwright's bundled Chromium, since its pinned version
+    trails the latest real Chrome release and their UA sniffing flags it --
+    with a 'Skip to <product>' link past it. Best-effort, short timeout,
+    never raises: most pages never show this, so this should be a silent
+    no-op almost every time.
+    """
+    try:
+        skip_link = page.get_by_text("Skip to", exact=False).first
+        skip_link.wait_for(state="visible", timeout=4000)
+        human.click_locator(page, skip_link, timeout=4000)
+        human.wait(1, 2)
+    except Exception:
+        pass
 
 
 def close_account(page):
