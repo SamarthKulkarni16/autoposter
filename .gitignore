@@ -3,3 +3,4 @@ __pycache__/
 autoposter.log
 failures/*.png
 debug/shots/*.png
+profiles/
