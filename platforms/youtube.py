@@ -49,9 +49,14 @@ def post(ctx, page):
     title_field = engine.locate(page, role="textbox", name="Add a title", timeout=8000)
     engine.select_all_and_type(page, title_field, ctx["title"])
 
-    # Description field: click into it explicitly, it's not auto-focused
-    desc_field = engine.locate(page, text="Tell viewers about your video", timeout=8000)
-    engine.type_text(desc_field, ctx["caption"])
+    # Description field: located by role/label, not placeholder text --
+    # if the channel has a default description template configured in
+    # Studio settings, the field is pre-filled the moment the dialog
+    # opens and the placeholder text never appears. select_all_and_type
+    # overwrites whatever's already there (template or not) instead of
+    # appending after it.
+    desc_field = engine.locate(page, role="textbox", name="Description", timeout=8000)
+    engine.select_all_and_type(page, desc_field, ctx["caption"])
 
     human.wait(0.5, 1)
 
