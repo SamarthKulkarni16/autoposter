@@ -34,7 +34,15 @@ ENABLED_PLATFORMS = ["youtube"]
 # account should land, logged in, ready to post.
 ACCOUNTS = {
     "youtube": {
-        "en": {"profile": "youtube_en", "url": "https://studio.youtube.com", "profile_path": "/home/ubuntu/.config/mozilla/firefox/g7dhshsu.default-release"},
+        # NOTE: previously used "profile_path" to reuse the VM's real Firefox
+        # profile directly, but Playwright bundles its own Firefox build,
+        # and that real profile had been touched by a newer system Firefox
+        # than Playwright's -- Firefox refuses to open a profile stamped by
+        # a newer version ("This profile was last used with a newer version
+        # of this application. Please create a new profile."). So "en" now
+        # uses a fresh Playwright-native profile like every other account;
+        # log in once with: python3 setup_profile.py youtube en
+        "en": {"profile": "youtube_en", "url": "https://studio.youtube.com"},
         "hi": {"profile": "youtube_hi", "url": "https://studio.youtube.com"},
         "ar": {"profile": "youtube_ar", "url": "https://studio.youtube.com"},
         "pt": {"profile": "youtube_pt", "url": "https://studio.youtube.com"},
