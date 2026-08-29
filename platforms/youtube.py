@@ -33,12 +33,13 @@ def post(ctx, page):
     # before clicking, so there's nothing to accidentally click prematurely.
     engine.click_role(page, "button", "Create", timeout=90000)
     human.wait(0.5, 1)
-    engine.click_text(page, "Upload videos")
 
-    # Native file picker — handled via Playwright's file-chooser interception,
-    # so no OS dialog, no Ctrl+L path typing, no dialog-focus race.
-    upload_input_trigger = engine.locate(page, text="Upload videos", timeout=8000)
-    engine.upload_file(page, upload_input_trigger, ctx["video_path"])
+    # Grab the locator BEFORE clicking it -- once clicked, the dropdown
+    # closes and this element becomes hidden, so it can't be re-located
+    # afterwards. upload_file() does the click itself, inside the
+    # file-chooser interception.
+    upload_trigger = engine.locate(page, text="Upload videos", timeout=8000)
+    engine.upload_file(page, upload_trigger, ctx["video_path"])
 
     # Wait for it to register the upload before touching title/desc fields
     engine.wait_for_text(page, "Details", timeout=90000)

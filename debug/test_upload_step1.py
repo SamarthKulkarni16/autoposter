@@ -82,11 +82,8 @@ def main():
         engine.click_role(page, "button", "Create", timeout=90000)
         shot(page, "02_after_create_click")
 
-        import human_actions as human
-        human.wait(0.5, 1)
-        engine.click_text(page, "Upload videos")
-        shot(page, "03_after_upload_videos_click")
-
+        # Grab the locator BEFORE clicking -- it closes the dropdown once
+        # clicked and becomes hidden, so it can't be re-located afterwards.
         upload_trigger = engine.locate(page, text="Upload videos", timeout=8000)
         engine.upload_file(page, upload_trigger, video_path)
         shot(page, "04_after_file_upload")
