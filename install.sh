@@ -3,12 +3,11 @@
 # Usage: cd autoposter && bash install.sh
 set -e
 
-echo "Installing system packages..."
-sudo apt update
-sudo apt install -y tesseract-ocr python3-pip python3-tk python3-dev scrot xdotool firefox
-
 echo "Installing Python packages..."
 pip3 install -r requirements.txt
+
+echo "Installing Playwright's Firefox build + OS deps..."
+python3 -m playwright install --with-deps firefox
 
 echo ""
 echo "Done. Next step — log in to each account (type these one at a time):"

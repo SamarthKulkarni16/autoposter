@@ -1,23 +1,23 @@
 """
-human_actions.py — human-speed mouse movement, clicking, and typing.
-Speed doesn't matter for the task, but human-shaped movement reduces the
-chance of any platform flagging perfectly-straight-line, zero-delay input.
+human_actions.py — human-shaped mouse movement and typing, built on top of
+Playwright's own actionability waits instead of raw pixel coordinates.
+
+Playwright already knows exactly where an element is in the DOM and will
+wait for it to be visible/stable/enabled before interacting with it, so this
+module isn't responsible for "finding" anything anymore (see engine.py) —
+just for making the resulting movement/typing look less robotic than an
+instant teleport-click would.
 """
 
 import time
 import random
 import math
-import pyautogui
-
-pyautogui.PAUSE = 0  # we control our own timing
 
 
-def _bezier_path(x1, y1, x2, y2, steps=25):
-    # slight random curve control point so movement isn't a straight line
+def _bezier_path(x1, y1, x2, y2, steps=20):
     dist = math.hypot(x2 - x1, y2 - y1)
     bend = random.uniform(-0.15, 0.15) * dist
     mx, my = (x1 + x2) / 2, (y1 + y2) / 2
-    # perpendicular offset for the control point
     dx, dy = x2 - x1, y2 - y1
     length = max(math.hypot(dx, dy), 1)
     perp = (-dy / length, dx / length)
@@ -32,39 +32,53 @@ def _bezier_path(x1, y1, x2, y2, steps=25):
     return points
 
 
-def move_to(x, y, duration=None):
-    x0, y0 = pyautogui.position()
+def move_to(page, x, y, from_x=None, from_y=None, duration=None):
+    """Move the real mouse pointer to (x, y) along a slight curve instead of
+    a straight teleport. from_x/from_y default to page center since
+    Playwright (unlike pyautogui) has no concept of 'current OS cursor
+    position' to read back."""
+    x0 = from_x if from_x is not None else x + random.uniform(-80, 80)
+    y0 = from_y if from_y is not None else y + random.uniform(-80, 80)
     dist = math.hypot(x - x0, y - y0)
-    duration = duration or min(1.2, max(0.25, dist / 1400))
-    steps = max(10, int(duration * 60))
+    duration = duration or min(1.0, max(0.2, dist / 1400))
+    steps = max(8, int(duration * 40))
     path = _bezier_path(x0, y0, x, y, steps=steps)
     step_time = duration / steps
     for px, py in path:
-        pyautogui.moveTo(px, py)
+        page.mouse.move(px, py)
         time.sleep(step_time * random.uniform(0.7, 1.3))
 
 
-def click(x, y, jitter=3):
-    jx = x + random.randint(-jitter, jitter)
-    jy = y + random.randint(-jitter, jitter)
-    move_to(jx, jy)
-    time.sleep(random.uniform(0.08, 0.22))
-    pyautogui.click()
+def click_locator(page, locator, jitter=2, timeout=15000):
+    """Click a Playwright Locator with human-ish mouse movement leading into
+    it. Playwright's own actionability checks (visible/stable/enabled/
+    receives-events) already run before this, so no manual find/retry loop
+    is needed the way vision.py used to require."""
+    locator.wait_for(state="visible", timeout=timeout)
+    locator.scroll_into_view_if_needed(timeout=timeout)
+    box = locator.bounding_box()
+    if box:
+        tx = box["x"] + box["width"] / 2 + random.randint(-jitter, jitter)
+        ty = box["y"] + box["height"] / 2 + random.randint(-jitter, jitter)
+        move_to(page, tx, ty)
+        time.sleep(random.uniform(0.08, 0.22))
+    locator.click(timeout=timeout)
     time.sleep(random.uniform(0.15, 0.4))
 
 
-def type_text(text, wpm_range=(180, 260)):
-    """Types at a human-ish speed with tiny random pauses. No error injection
-    — deliberate typos risk posting broken captions, not worth the realism."""
-    for ch in text:
-        pyautogui.write(ch)
-        cps = random.uniform(*wpm_range) * 5 / 60  # chars/sec approx from wpm
-        time.sleep(1 / cps * random.uniform(0.6, 1.4))
-    time.sleep(random.uniform(0.2, 0.5))
-
-
-def key(*keys):
-    pyautogui.hotkey(*keys)
+def type_text(locator, text, delay_ms_range=(35, 65)):
+    """Types at a human-ish speed with small per-chunk jitter. No error
+    injection — deliberate typos risk posting a broken caption, not worth
+    the realism."""
+    locator.click()
+    # press_sequentially takes one fixed delay per call, so chunk the text
+    # into small pieces and vary the delay between chunks for jitter.
+    i = 0
+    while i < len(text):
+        chunk_len = random.randint(2, 5)
+        chunk = text[i:i + chunk_len]
+        locator.press_sequentially(chunk, delay=random.uniform(*delay_ms_range))
+        i += chunk_len
     time.sleep(random.uniform(0.2, 0.5))
 
 

@@ -1,16 +1,15 @@
 """
 debug/test_upload_step1.py — non-destructive dry run of the YouTube upload
-flow, stopping at the 'Details' screen (video picked, title/desc typed,
-NO Next/Publish clicks). Screenshots every step to debug/shots/ so the run
-can be reviewed without needing to watch it live over RDP.
+flow, stopping at the 'Details' screen (video picked, title typed, NO
+Next/Publish clicks). Screenshots every step to debug/shots/ so the run can
+be reviewed without needing to watch it live over RDP.
 
-Run from the repo root on the VM (needs the real DISPLAY/DBUS env of the
-live desktop session, same as any other GUI automation here):
+Run from the repo root on the VM:
     python3 debug/test_upload_step1.py
+    python3 debug/test_upload_step1.py --fast   # shorter timeouts for iterating
 """
 import sys
 import json
-import cv2
 import os
 import argparse
 from pathlib import Path
@@ -19,22 +18,20 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import engine
 import config
-import vision
-
-def parse_args():
-    """Parse command line arguments."""
-    parser = argparse.ArgumentParser(description="Non-destructive YouTube upload test")
-    parser.add_argument("--fast", action="store_true", help="Enable fast/debug mode with shorter timeouts")
-    return parser.parse_args()
 
 SHOT_DIR = Path(__file__).parent / "shots"
 SHOT_DIR.mkdir(exist_ok=True)
 
 
-def shot(label):
-    frame = vision._screenshot()
+def parse_args():
+    parser = argparse.ArgumentParser(description="Non-destructive YouTube upload test")
+    parser.add_argument("--fast", action="store_true", help="Enable fast/debug mode with shorter timeouts")
+    return parser.parse_args()
+
+
+def shot(page, label):
     path = SHOT_DIR / f"{label}.png"
-    cv2.imwrite(str(path), frame)
+    page.screenshot(path=str(path), full_page=True)
     print(f"[shot] saved {path}")
 
 
@@ -68,54 +65,48 @@ def main():
     print(f"[info] Using test video: {video_path}")
 
     title = meta.get("title", {}).get("en", "Autoposter test upload - DO NOT PUBLISH")
-    caption = meta.get("caption", {}).get("en", "Test upload, will not be published.")
 
-    proc = engine.open_account("youtube", "en")
-    shot("01_studio_loaded")
+    page = engine.open_account("youtube", "en")
+    shot(page, "01_studio_loaded")
 
     try:
-        _, nav_y = engine.locate_text("Studio", region=engine.below_chrome_region(), timeout=90)
-        shot("01b_page_actually_ready")
+        # No more "is the real page ready or is this the browser tab title"
+        # ambiguity — get_by_role only ever looks inside the page DOM, so
+        # waiting for the button itself to be visible IS the readiness check.
+        create_btn = engine.locate(page, role="button", name="Create", timeout=90000)
+        shot(page, "01b_page_actually_ready")
 
-        # DIAGNOSTIC: mark exactly where OCR thinks "Create" is, before
-        # clicking, so we can visually confirm the click target is actually
-        # on the button and not just close to it.
-        create_pt = vision.find_text("Create", region=engine.band_region(nav_y))
-        print(f"[diag] 'Create' OCR match at: {create_pt}")
-        if create_pt:
-            marked = vision._screenshot()
-            cv2.circle(marked, create_pt, 12, (0, 0, 255), 3)
-            cv2.imwrite(str(SHOT_DIR / "01c_create_target_marked.png"), marked)
-            print("[diag] saved marked target screenshot")
-        else:
-            print("[diag] WARNING: 'Create' not found at all in this diagnostic pass")
+        box = create_btn.bounding_box()
+        print(f"[diag] 'Create' button bounding box: {box}")
 
-        engine.click_text("Create", region=engine.band_region(nav_y))
-        shot("02_after_create_click")
+        engine.click_role(page, "button", "Create", timeout=90000)
+        shot(page, "02_after_create_click")
 
         import human_actions as human
         human.wait(0.5, 1)
-        engine.click_text("Upload videos")
-        shot("03_after_upload_videos_click")
+        engine.click_text(page, "Upload videos")
+        shot(page, "03_after_upload_videos_click")
 
-        engine.open_file_via_dialog(video_path)
-        shot("04_after_file_dialog")
+        upload_trigger = engine.locate(page, text="Upload videos", timeout=8000)
+        engine.upload_file(page, upload_trigger, video_path)
+        shot(page, "04_after_file_upload")
 
-        engine.wait_for_text("Details", timeout=90)
-        shot("05_details_screen_reached")
+        engine.wait_for_text(page, "Details", timeout=90000)
+        shot(page, "05_details_screen_reached")
 
-        engine.select_all_and_type(title)
-        shot("06_title_typed")
+        title_field = engine.locate(page, role="textbox", name="Add a title", timeout=8000)
+        engine.select_all_and_type(page, title_field, title)
+        shot(page, "06_title_typed")
 
         print("[SUCCESS] Reached Details screen with title set. Stopping here on purpose.")
         print("[SUCCESS] No Next/Publish was clicked. Studio autosaves this as an unlisted draft.")
 
     except Exception as e:
-        shot("ERROR_final_state")
+        shot(page, "ERROR_final_state")
         print(f"[FAIL] {type(e).__name__}: {e}")
         raise
     finally:
-        engine.close_account(proc)
+        engine.close_account(page)
 
 
 if __name__ == "__main__":

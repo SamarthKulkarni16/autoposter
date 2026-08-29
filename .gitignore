@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+autoposter.log
+failures/*.png
+debug/shots/*.png

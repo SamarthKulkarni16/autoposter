@@ -1,19 +1,22 @@
 """
 setup_profile.py — run this ONCE per account to log in by hand.
-After this, the script can open that account any time without logging in
-again — the login is saved inside its own Firefox profile.
+After this, main.py can open that account any time without logging in
+again — the login is saved inside its own persistent Firefox profile
+directory (cookies, local storage, everything), the same way a normal
+Firefox profile folder works.
 
 Usage:
     python3 setup_profile.py youtube en
 
-Registers a dedicated Firefox profile for that account (if not already
-registered), opens it, and you log in by hand (including any 2FA/OTP).
-When done, come back to this terminal and press Enter.
+Opens a real, visible Firefox window (via Playwright) pointed at the
+account's start URL. Log in by hand (including any 2FA/OTP), then come back
+to this terminal and press Enter — the profile directory is created
+automatically the first time, no separate "-CreateProfile" step needed.
 """
 
 import sys
-import subprocess
 import config
+from playwright.sync_api import sync_playwright
 
 
 def main():
@@ -29,31 +32,29 @@ def main():
         print(f"No account configured for {platform}/{lang} in config.py")
         sys.exit(1)
 
-    profile_name = account["profile"]
-    profile_dir = config.PROFILES_DIR / profile_name
+    if "profile_path" in account:
+        user_data_dir = account["profile_path"]
+    else:
+        user_data_dir = str(config.PROFILES_DIR / account["profile"])
 
-    if not profile_dir.exists():
-        print(f"Registering new Firefox profile: {profile_name}")
-        subprocess.run([
-            config.BROWSER_BIN, "-CreateProfile",
-            f"{profile_name} {profile_dir}"
-        ], check=True)
-
-    print(f"Opening Firefox for {platform}/{lang} → {account['url']}")
+    print(f"Opening Firefox for {platform}/{lang} -> {account['url']}")
+    print(f"Profile directory: {user_data_dir}")
     print("Log in fully (2FA/OTP included), then come back here and press Enter.")
 
-    proc = subprocess.Popen([
-        config.BROWSER_BIN,
-        "-no-remote",
-        "-P", profile_name,
-        account["url"],
-    ])
+    with sync_playwright() as pw:
+        context = pw.firefox.launch_persistent_context(
+            user_data_dir,
+            headless=False,
+            viewport={"width": 1440, "height": 900},
+        )
+        page = context.pages[0] if context.pages else context.new_page()
+        page.goto(account["url"], wait_until="domcontentloaded")
 
-    input("Press Enter once you're logged in and ready... ")
-    proc.terminate()
-    print(f"Saved. Login for {profile_name} is now stored in {profile_dir}")
+        input("Press Enter once you're logged in and ready... ")
+        context.close()
+
+    print(f"Saved. Login for {platform}/{lang} is now stored in {user_data_dir}")
 
 
 if __name__ == "__main__":
     main()
-

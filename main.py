@@ -89,11 +89,11 @@ def run_job(job):
     video_id, platform, lang = job["video_id"], job["platform"], job["lang"]
     log.info(f"Posting {video_id} -> {platform}/{lang}")
     state.set_status(video_id, platform, lang, "in_progress")
-    proc = None
+    page = None
     try:
-        proc = engine.open_account(platform, lang)
+        page = engine.open_account(platform, lang)
         mod = _load_platform(platform)
-        mod.post(job)
+        mod.post(job, page)
         state.set_status(video_id, platform, lang, "posted")
         log.info(f"OK {video_id} -> {platform}/{lang}")
         return True
@@ -102,8 +102,8 @@ def run_job(job):
         log.error(f"FAILED {video_id} -> {platform}/{lang}: {e}")
         return False
     finally:
-        if proc is not None:
-            engine.close_account(proc)
+        if page is not None:
+            engine.close_account(page)
 
 
 def process_queue_once():
