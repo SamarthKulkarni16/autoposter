@@ -9,20 +9,20 @@ actual page, shadow DOM included) rather than screen-pixel OCR — see
 ## 1. One-time setup
 
 No X11/Wayland requirement anymore — Playwright can drive a headed or
-headless Firefox either way, it doesn't read screen pixels or inject OS-level
+headless Chrome either way, it doesn't read screen pixels or inject OS-level
 input.
 
 ```bash
 cd autoposter
 pip3 install -r requirements.txt
-python3 -m playwright install --with-deps firefox
+python3 -m playwright install --with-deps chrome
 ```
 
 (`install.sh` does both of the above for you on a fresh VM.)
 
 ## 2. Account setup (manual, one time per account)
 
-Each account (e.g. YouTube Hindi) gets its own persistent Firefox profile
+Each account (e.g. YouTube Hindi) gets its own persistent Chrome profile
 directory that remembers its login. Log in once per account:
 
 ```bash
@@ -33,7 +33,7 @@ python3 setup_profile.py youtube pt
 python3 setup_profile.py youtube es
 ```
 
-Each command opens a real, visible Firefox window. Log in fully (including
+Each command opens a real, visible Chrome window. Log in fully (including
 any OTP/2FA), then press Enter in the terminal. The login is now saved in
 `profiles/<account>/` permanently — the script reuses it forever until the
 platform logs it out on its own.

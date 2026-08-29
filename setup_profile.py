@@ -1,17 +1,25 @@
 """
 setup_profile.py — run this ONCE per account to log in by hand.
 After this, main.py can open that account any time without logging in
-again — the login is saved inside its own persistent Firefox profile
-directory (cookies, local storage, everything), the same way a normal
-Firefox profile folder works.
+again — the login is saved inside its own persistent Chrome user-data-dir
+(cookies, local storage, everything), the same way a normal Chrome profile
+folder works.
 
 Usage:
     python3 setup_profile.py youtube en
 
-Opens a real, visible Firefox window (via Playwright) pointed at the
-account's start URL. Log in by hand (including any 2FA/OTP), then come back
-to this terminal and press Enter — the profile directory is created
-automatically the first time, no separate "-CreateProfile" step needed.
+Opens a real, visible Google Chrome window (via Playwright's "chrome"
+channel — the actual installed browser, not Playwright's bundled Chromium)
+pointed at the account's start URL. Log in by hand (including any 2FA/OTP),
+then come back to this terminal and press Enter — the profile directory is
+created automatically the first time.
+
+Chrome, not Firefox: Google's sign-in flow blocks Playwright's patched
+Firefox build far more often than real Chrome running with
+--disable-blink-features=AutomationControlled (see engine.py for detail).
+Requires Google Chrome to be installed on this machine (install.sh does
+this) — Playwright's "chrome" channel drives the real browser, it doesn't
+ship its own copy of it the way it does for Chromium/Firefox/WebKit.
 """
 
 import sys
@@ -37,15 +45,17 @@ def main():
     else:
         user_data_dir = str(config.PROFILES_DIR / account["profile"])
 
-    print(f"Opening Firefox for {platform}/{lang} -> {account['url']}")
+    print(f"Opening Chrome for {platform}/{lang} -> {account['url']}")
     print(f"Profile directory: {user_data_dir}")
     print("Log in fully (2FA/OTP included), then come back here and press Enter.")
 
     with sync_playwright() as pw:
-        context = pw.firefox.launch_persistent_context(
+        context = pw.chromium.launch_persistent_context(
             user_data_dir,
             headless=False,
+            channel="chrome",
             viewport={"width": 1440, "height": 900},
+            args=["--disable-blink-features=AutomationControlled"],
         )
         page = context.pages[0] if context.pages else context.new_page()
         page.goto(account["url"], wait_until="domcontentloaded")

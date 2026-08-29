@@ -65,14 +65,20 @@ def _shutdown():
 
 def open_account(platform, lang):
     """
-    Launches a persistent Firefox context using the dedicated profile for
-    this (platform, lang) account, already logged in, pointed at its start
-    URL. Returns the Page — pass it to close_account() when done.
+    Launches a persistent Chrome context (real installed Google Chrome, via
+    Playwright's "chrome" channel — not Playwright's own bundled Chromium)
+    using the dedicated profile for this (platform, lang) account, already
+    logged in, pointed at its start URL. Returns the Page — pass it to
+    close_account() when done.
+
+    Chrome, not Firefox: Google's sign-in flow actively fingerprints and
+    blocks browsers it detects as automated/embedded ("This browser or app
+    may not be secure"), and that block triggers far more reliably against
+    Playwright's patched Firefox build than against real Chrome running
+    with --disable-blink-features=AutomationControlled.
 
     A persistent context IS the profile directory (cookies, local storage,
-    everything), so this is a drop-in replacement for the old
-    "-P <profile>" Firefox launch: same on-disk login persistence, no OS
-    file-picker/window-focus dance required to drive it.
+    everything), so logins made once via setup_profile.py stick around.
     """
     account = config.ACCOUNTS[platform][lang]
 
@@ -86,10 +92,12 @@ def open_account(platform, lang):
                 f"Run: python3 setup_profile.py {platform} {lang}"
             )
 
-    context = _playwright().firefox.launch_persistent_context(
+    context = _playwright().chromium.launch_persistent_context(
         user_data_dir,
         headless=config.HEADLESS,
+        channel="chrome",
         viewport={"width": 1440, "height": 900},
+        args=["--disable-blink-features=AutomationControlled"],
     )
     page = context.pages[0] if context.pages else context.new_page()
     page.goto(account["url"], wait_until="domcontentloaded")

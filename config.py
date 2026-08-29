@@ -9,11 +9,12 @@ OUTBOX_DIR = BASE_DIR / "outbox"
 PROFILES_DIR = BASE_DIR / "profiles"
 PROFILES_DIR.mkdir(exist_ok=True)
 
-# Playwright's persistent-context Firefox reads/writes a normal Firefox
-# profile directory (same on-disk format as real Firefox), so accounts
-# logged in once under profiles/<name>/ (or an existing real Firefox
-# profile via "profile_path") stay logged in on every future run — no
-# browser binary path needed anymore, Playwright ships its own Firefox.
+# Playwright's persistent-context Chrome (real installed Google Chrome, via
+# the "chrome" channel) reads/writes a normal Chrome user-data-dir, so
+# accounts logged in once under profiles/<name>/ stay logged in on every
+# future run. Chrome, not Firefox: Google's own sign-in flow blocks
+# Playwright's patched Firefox build far more often than real Chrome
+# (see engine.open_account docstring).
 HEADLESS = False          # Studio's upload UI behaves more reliably headed
 LOAD_WAIT_SEC = 3         # short settle pause after navigation, before interacting
 
@@ -29,7 +30,7 @@ ENABLED_PLATFORMS = ["youtube"]
 # --- Accounts -------------------------------------------------------------
 # One entry per (platform, lang). "profile" = folder name under profiles/,
 # created automatically the first time you run setup_profile.py for it.
-# "profile_path" = an absolute path to an existing Firefox profile to reuse
+# "profile_path" = an absolute path to an existing Chrome user-data-dir to reuse
 # instead (e.g. one already logged in outside this tool). "url" = where the
 # account should land, logged in, ready to post.
 ACCOUNTS = {
@@ -39,9 +40,11 @@ ACCOUNTS = {
         # and that real profile had been touched by a newer system Firefox
         # than Playwright's -- Firefox refuses to open a profile stamped by
         # a newer version ("This profile was last used with a newer version
-        # of this application. Please create a new profile."). So "en" now
-        # uses a fresh Playwright-native profile like every other account;
-        # log in once with: python3 setup_profile.py youtube en
+        # of this application. Please create a new profile."). We also then
+        # hit Google actively blocking Playwright's Firefox at sign-in
+        # ("This browser or app may not be secure"), so this account now
+        # uses a fresh Chrome profile like every other account; log in once
+        # with: python3 setup_profile.py youtube en
         "en": {"profile": "youtube_en", "url": "https://studio.youtube.com"},
         "hi": {"profile": "youtube_hi", "url": "https://studio.youtube.com"},
         "ar": {"profile": "youtube_ar", "url": "https://studio.youtube.com"},

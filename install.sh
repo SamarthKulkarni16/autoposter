@@ -6,8 +6,8 @@ set -e
 echo "Installing Python packages..."
 pip3 install -r requirements.txt
 
-echo "Installing Playwright's Firefox build + OS deps..."
-python3 -m playwright install --with-deps firefox
+echo "Installing real Google Chrome (Playwright's 'chrome' channel) + OS deps..."
+python3 -m playwright install --with-deps chrome
 
 echo ""
 echo "Done. Next step — log in to each account (type these one at a time):"
