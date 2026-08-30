@@ -80,5 +80,18 @@ def post(ctx, page):
     human.wait(0.3, 0.6)
     engine.click_role(page, "button", "Publish", exact=True)
 
+    # YouTube sometimes interposes a "We're still checking your content"
+    # interstitial here (content/copyright checks still in progress),
+    # warning that publishing now risks a strike or restricted visibility/
+    # monetization, with "Publish anyway" / "Go back" buttons. Per explicit
+    # instruction: always push through with "Publish anyway" when it shows.
+    # Best-effort and short timeout -- most uploads never trigger this, so
+    # this should be a silent no-op most of the time.
+    try:
+        engine.click_role(page, "button", "Publish anyway", exact=True, timeout=4000, retries=0)
+        human.wait(0.5, 1)
+    except engine.StepFailed:
+        pass
+
     # Confirm the publish actually completed
     engine.wait_for_text(page, "Video published", timeout=60000)
