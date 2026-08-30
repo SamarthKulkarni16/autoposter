@@ -250,6 +250,40 @@ def upload_file(page, trigger_locator, file_path):
     human.wait(1, 2)
 
 
+def click_text_in_scrollable(page, label_text, exact=False, max_scrolls=8, scroll_amount=250, timeout=2500):
+    """
+    For a target that's inside its OWN small scrollable panel (not the page,
+    not some other bigger scroll area on screen) where items may only exist
+    in the DOM once scrolled near -- e.g. Pinterest's board-picker dropdown,
+    which sits inside two other page-level scrolls. Tries a plain find first
+    (works if the list isn't virtualized / target's already rendered), and
+    only falls back to scrolling if that fails.
+
+    Scrolling targets whatever's currently under the mouse, so this hovers
+    the last-seen matching-ish element (or just the viewport center as a
+    fallback) before each wheel tick -- if this scrolls the WRONG pane on a
+    given UI, that's a live-testing fix (move the hover point), not a design
+    problem with this helper.
+    """
+    try:
+        return click_text(page, label_text, exact=exact, timeout=timeout, retries=0)
+    except StepFailed:
+        pass
+
+    for _ in range(max_scrolls):
+        page.mouse.wheel(0, scroll_amount)
+        human.wait(0.3, 0.6)
+        try:
+            return click_text(page, label_text, exact=exact, timeout=timeout, retries=0)
+        except StepFailed:
+            continue
+
+    shot_path = _save_failure(f"scroll_find_{label_text}".replace(" ", "_"), page)
+    raise StepFailed(
+        f"Could not find '{label_text}' after scrolling. Screenshot saved to {shot_path}"
+    )
+
+
 def wait_for_text(page, label_text, exact=False, timeout=60000):
     """Blocks until label_text appears (e.g. waiting for upload/processing)."""
     timeout = _fast_timeout(timeout, fast_ms=15000)
