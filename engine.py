@@ -94,11 +94,21 @@ def open_account(platform, lang):
                 f"Run: python3 setup_profile.py {platform} {lang}"
             )
 
+    # In headed mode, let the window take over the full screen instead of a
+    # small fixed-size viewport (which showed up on RDP as a tiny "restored
+    # down" window) -- viewport=None + --start-maximized makes Chromium size
+    # itself to the actual screen. In headless mode there's no visible window
+    # to maximize, so keep a fixed viewport as before.
+    if config.HEADLESS:
+        launch_kwargs = dict(viewport={"width": 1440, "height": 900})
+    else:
+        launch_kwargs = dict(viewport=None)
+
     context = _playwright().chromium.launch_persistent_context(
         user_data_dir,
         headless=config.HEADLESS,
-        viewport={"width": 1440, "height": 900},
-        args=["--disable-blink-features=AutomationControlled"],
+        args=["--disable-blink-features=AutomationControlled", "--start-maximized"],
+        **launch_kwargs,
     )
     page = context.pages[0] if context.pages else context.new_page()
     page.goto(account["url"], wait_until="domcontentloaded")

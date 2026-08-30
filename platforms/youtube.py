@@ -63,15 +63,22 @@ def post(ctx, page):
     title_field = engine.locate(page, role="textbox", name="Add a title", timeout=8000)
     engine.select_all_and_type(page, title_field, ctx["title"])
 
-    # Step through Next -> Next -> Next (elements/checks/visibility screens)
+    # Step through Next -> Next -> Next (elements/checks/visibility screens).
+    # exact=True matters here: without it, get_by_role(name="Next") matches
+    # any accessible name *containing* "Next" -- which includes Studio
+    # dashboard's "Next item" carousel-arrow button (recent uploads strip),
+    # sitting behind this dialog's backdrop. .first grabs whichever comes
+    # first in the DOM, which was that hidden carousel arrow, not our
+    # wizard's actual "Next" button -- so every click got blocked by the
+    # modal backdrop intercepting the (wrong, off-screen) element.
     for _ in range(3):
-        engine.click_role(page, "button", "Next")
+        engine.click_role(page, "button", "Next", exact=True)
         human.wait(0.6, 1.2)
 
     # Visibility screen
     engine.click_text(page, "Public")
     human.wait(0.3, 0.6)
-    engine.click_role(page, "button", "Publish")
+    engine.click_role(page, "button", "Publish", exact=True)
 
     # Confirm the publish actually completed
     engine.wait_for_text(page, "Video published", timeout=60000)
