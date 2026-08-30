@@ -14,7 +14,6 @@ import random
 import time
 import logging
 import importlib
-from datetime import datetime
 
 import config
 import state
@@ -79,12 +78,6 @@ def build_queue():
     return jobs
 
 
-def in_active_hours():
-    hour = datetime.now().hour
-    start, end = config.ACTIVE_HOURS
-    return start <= hour < end
-
-
 def run_job(job):
     video_id, platform, lang = job["video_id"], job["platform"], job["lang"]
     log.info(f"Posting {video_id} -> {platform}/{lang}")
@@ -110,9 +103,6 @@ def process_queue_once():
     jobs = build_queue()
     log.info(f"{len(jobs)} pending job(s)")
     for job in jobs:
-        if not in_active_hours():
-            log.info("Outside active hours, stopping run.")
-            break
         run_job(job)
         gap = random.uniform(*config.MIN_GAP_BETWEEN_POSTS)
         log.info(f"Sleeping {gap:.0f}s before next post")

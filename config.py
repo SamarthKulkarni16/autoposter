@@ -20,7 +20,6 @@ LOAD_WAIT_SEC = 3         # short settle pause after navigation, before interact
 
 POLL_INTERVAL_SEC = 120
 MIN_GAP_BETWEEN_POSTS = (180, 480)   # seconds, randomized gap between posts
-ACTIVE_HOURS = (9, 23)
 
 LANGS = ["en", "hi", "ar", "pt", "es"]
 
