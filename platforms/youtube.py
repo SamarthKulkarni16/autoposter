@@ -21,11 +21,18 @@ def post(ctx, page):
         "lang": "en",
         "video_path": "/home/user/outbox/vid123/en.mp4",
         "title": "...",
-        "caption": "...",   # used as description
-        "tags": "...",      # optional, comma separated
+        "caption": "...",   # currently unused -- description step removed
+        "tags": "...",      # optional, comma separated, currently unused
     }
     page = the Playwright Page returned by engine.open_account(), already
     navigated to studio.youtube.com and logged in.
+
+    Sequence, exactly: Create -> Upload videos -> SELECT FILES -> pick file
+    -> title (clear + fill) -> Next -> Next -> Next -> Public -> Publish.
+    No description fill, no "made for kids" click. NOTE: "made for kids" is
+    normally a required radio button on the Details screen -- without an
+    answer, YouTube may keep Next disabled/blocked. This was stripped out
+    on purpose per explicit instruction; if the first Next stalls, that's why.
     """
     # "Create" is YT Studio's own top-nav button (role=button). No need to
     # wait for a separate "Studio" logo anchor first — Playwright's locator
@@ -55,21 +62,6 @@ def post(ctx, page):
     # Title field is focused by default with placeholder text selected
     title_field = engine.locate(page, role="textbox", name="Add a title", timeout=8000)
     engine.select_all_and_type(page, title_field, ctx["title"])
-
-    # Description field: located by its accessible name (a static
-    # aria-label on the contenteditable box, "Tell viewers about your
-    # video..."), NOT by the visible "Description" section header above
-    # it (that's a separate, unrelated element with no accessible-name
-    # link to the field) and NOT by placeholder text (disappears once a
-    # default-description template pre-fills the field).
-    # select_all_and_type overwrites whatever's already there.
-    desc_field = engine.locate(page, role="textbox", name="Tell viewers about your video", exact=False, timeout=8000)
-    engine.select_all_and_type(page, desc_field, ctx["caption"])
-
-    human.wait(0.5, 1)
-
-    # "No, it's not made for kids" is the usual default further down
-    engine.click_text(page, "No, it's not made for kids")
 
     # Step through Next -> Next -> Next (elements/checks/visibility screens)
     for _ in range(3):
