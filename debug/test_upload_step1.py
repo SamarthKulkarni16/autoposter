@@ -26,6 +26,8 @@ SHOT_DIR.mkdir(exist_ok=True)
 def parse_args():
     parser = argparse.ArgumentParser(description="Non-destructive YouTube upload test")
     parser.add_argument("--fast", action="store_true", help="Enable fast/debug mode with shorter timeouts")
+    parser.add_argument("--lang", default=config.LANGS[0],
+                         help=f"Which configured account/video language to test (default: {config.LANGS[0]!r})")
     return parser.parse_args()
 
 
@@ -35,7 +37,7 @@ def shot(page, label):
     print(f"[shot] saved {path}")
 
 
-def find_test_video():
+def find_test_video(lang):
     """Reuses the same outbox/<id>/{lang}.mp4 + meta.json layout main.py expects."""
     if not config.OUTBOX_DIR.exists():
         raise SystemExit(f"OUTBOX_DIR does not exist: {config.OUTBOX_DIR}")
@@ -43,15 +45,15 @@ def find_test_video():
         if not video_dir.is_dir():
             continue
         meta_path = video_dir / "meta.json"
-        candidate = video_dir / "en.mp4"
+        candidate = video_dir / f"{lang}.mp4"
         if candidate.exists():
             meta = {}
             if meta_path.exists():
                 with open(meta_path) as f:
                     meta = json.load(f)
             return candidate, meta
-    raise SystemExit(f"No <id>/en.mp4 found anywhere under {config.OUTBOX_DIR}. "
-                      f"Put a real test video there first (e.g. outbox/test1/en.mp4 "
+    raise SystemExit(f"No <id>/{lang}.mp4 found anywhere under {config.OUTBOX_DIR}. "
+                      f"Put a real test video there first (e.g. outbox/test1/{lang}.mp4 "
                       f"+ outbox/test1/meta.json).")
 
 
@@ -61,12 +63,17 @@ def main():
         print("[info] Fast/debug mode enabled")
         os.environ["DEBUG_FAST"] = "1"
 
-    video_path, meta = find_test_video()
+    lang = args.lang
+    if lang not in config.ACCOUNTS.get("youtube", {}):
+        raise SystemExit(f"No youtube account configured for lang={lang!r}. "
+                          f"Configured: {list(config.ACCOUNTS.get('youtube', {}).keys())}")
+
+    video_path, meta = find_test_video(lang)
     print(f"[info] Using test video: {video_path}")
 
-    title = meta.get("title", {}).get("en", "Autoposter test upload - DO NOT PUBLISH")
+    title = meta.get("title", {}).get(lang, "Autoposter test upload - DO NOT PUBLISH")
 
-    page = engine.open_account("youtube", "en")
+    page = engine.open_account("youtube", lang)
     shot(page, "01_studio_loaded")
 
     try:

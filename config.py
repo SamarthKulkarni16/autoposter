@@ -21,10 +21,10 @@ LOAD_WAIT_SEC = 3         # short settle pause after navigation, before interact
 POLL_INTERVAL_SEC = 120
 MIN_GAP_BETWEEN_POSTS = (180, 480)   # seconds, randomized gap between posts
 
-# Languages main.py will actually build jobs for and post automatically.
-# "en" is deliberately left out -- English is being handled outside this
-# automation; the youtube/en account/profile/login are still fully intact
-# in ACCOUNTS below and via setup_profile.py, just not auto-posted to.
+# Languages main.py will build jobs for and post automatically. No "en"
+# here or anywhere in ACCOUNTS below -- English channels are deliberately
+# not part of this automation at all, for any platform. Add new platforms/
+# languages to ACCOUNTS with the same non-English-only convention.
 LANGS = ["hi", "ar", "pt", "es"]
 
 # Which platforms are wired up in platforms/*.py. Add as you add each one.
@@ -36,6 +36,9 @@ ENABLED_PLATFORMS = ["youtube"]
 # "profile_path" = an absolute path to an existing Chromium user-data-dir to reuse
 # instead (e.g. one already logged in outside this tool). "url" = where the
 # account should land, logged in, ready to post.
+#
+# No "en" entries, for youtube or any platform added below -- English is
+# handled outside this automation entirely, across every social platform.
 ACCOUNTS = {
     "youtube": {
         # NOTE: previously used "profile_path" to reuse the VM's real Firefox
@@ -46,16 +49,14 @@ ACCOUNTS = {
         # of this application. Please create a new profile."). We also then
         # hit Google actively blocking Playwright's Firefox at sign-in
         # ("This browser or app may not be secure"), so this account now
-        # uses a fresh Chromium profile like every other account; log in once
-        # with: python3 setup_profile.py youtube en
-        "en": {"profile": "youtube_en", "url": "https://studio.youtube.com"},
+        # uses a fresh Chromium profile like every other account.
         "hi": {"profile": "youtube_hi", "url": "https://studio.youtube.com"},
         "ar": {"profile": "youtube_ar", "url": "https://studio.youtube.com"},
         "pt": {"profile": "youtube_pt", "url": "https://studio.youtube.com"},
         "es": {"profile": "youtube_es", "url": "https://studio.youtube.com"},
     },
     # "instagram": {
-    #     "en": {"profile": "instagram_en", "url": "https://www.instagram.com"},
-    #     ...
+    #     "hi": {"profile": "instagram_hi", "url": "https://www.instagram.com"},
+    #     ...  (no "en" entry here either)
     # },
 }
