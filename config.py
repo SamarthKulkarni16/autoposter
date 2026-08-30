@@ -75,10 +75,10 @@ ACCOUNTS = {
     # (samarth1616s@gmail.com) is a fully separate account and is
     # intentionally NOT configured here at all.
     "pinterest": {
-        "hi": {"profile": "pinterest_shared", "board": "Hindi", "url": "https://www.pinterest.com/pin-creation-tool/"},
-        "ar": {"profile": "pinterest_shared", "board": "Arabic", "url": "https://www.pinterest.com/pin-creation-tool/"},
-        "pt": {"profile": "pinterest_shared", "board": "Portuguese", "url": "https://www.pinterest.com/pin-creation-tool/"},
-        "es": {"profile": "pinterest_shared", "board": "Spanish", "url": "https://www.pinterest.com/pin-creation-tool/"},
+        "hi": {"profile": "pinterest_shared", "board": "Hindi", "email": "samarth.youtube1@gmail.com", "url": "https://www.pinterest.com/pin-creation-tool/"},
+        "ar": {"profile": "pinterest_shared", "board": "Arabic", "email": "samarth.youtube1@gmail.com", "url": "https://www.pinterest.com/pin-creation-tool/"},
+        "pt": {"profile": "pinterest_shared", "board": "Portuguese", "email": "samarth.youtube1@gmail.com", "url": "https://www.pinterest.com/pin-creation-tool/"},
+        "es": {"profile": "pinterest_shared", "board": "Spanish", "email": "samarth.youtube1@gmail.com", "url": "https://www.pinterest.com/pin-creation-tool/"},
     },
     # Facebook: same shared-login idea as Pinterest above, but the four
     # langs are four separate PAGES (not a dropdown choice on one shared
@@ -92,10 +92,10 @@ ACCOUNTS = {
     # the Page's display name, kept here for logging/sanity-checks in
     # platforms/facebook.py (not written yet) rather than for navigation.
     "facebook": {
-        "hi": {"profile": "facebook_shared", "page": "Samarth Kulkarni HI", "url": "https://www.facebook.com/profile.php?id=61589758439087"},
-        "ar": {"profile": "facebook_shared", "page": "Samarth Kulkarni Arabic", "url": "https://www.facebook.com/profile.php?id=61589615735525"},
-        "pt": {"profile": "facebook_shared", "page": "Samarth Kulkarni Portuguese", "url": "https://www.facebook.com/profile.php?id=61589630883062"},
-        "es": {"profile": "facebook_shared", "page": "Samarth Kulkarni ES", "url": "https://www.facebook.com/profile.php?id=61589796354178"},
+        "hi": {"profile": "facebook_shared", "page": "Samarth Kulkarni HI", "email": "samarth.youtube1@gmail.com", "url": "https://www.facebook.com/profile.php?id=61589758439087"},
+        "ar": {"profile": "facebook_shared", "page": "Samarth Kulkarni Arabic", "email": "samarth.youtube1@gmail.com", "url": "https://www.facebook.com/profile.php?id=61589615735525"},
+        "pt": {"profile": "facebook_shared", "page": "Samarth Kulkarni Portuguese", "email": "samarth.youtube1@gmail.com", "url": "https://www.facebook.com/profile.php?id=61589630883062"},
+        "es": {"profile": "facebook_shared", "page": "Samarth Kulkarni ES", "email": "samarth.youtube1@gmail.com", "url": "https://www.facebook.com/profile.php?id=61589796354178"},
     },
     # Instagram: back to YouTube's pattern, not Pinterest/Facebook's -- four
     # fully separate accounts, one per lang, each its own login (own email,
@@ -103,10 +103,10 @@ ACCOUNTS = {
     # above. "handle" is just for logging/sanity-checks (e.g. confirming the
     # right account ended up logged in), not used for navigation.
     "instagram": {
-        "hi": {"profile": "instagram_hi", "handle": "@samarthkulkarni_hi", "url": "https://www.instagram.com/"},
-        "ar": {"profile": "instagram_ar", "handle": "@samarthkulkarni.ar", "url": "https://www.instagram.com/"},
-        "pt": {"profile": "instagram_pt", "handle": "@samarthkulkarni.pt", "url": "https://www.instagram.com/"},
-        "es": {"profile": "instagram_es", "handle": "@samarthkulkarni_es", "url": "https://www.instagram.com/"},
+        "hi": {"profile": "instagram_hi", "handle": "@samarthkulkarni_hi", "email": "samarth.youtube1@gmail.com", "url": "https://www.instagram.com/"},
+        "ar": {"profile": "instagram_ar", "handle": "@samarthkulkarni.ar", "email": "samarthkulkarni.es@gmail.com", "url": "https://www.instagram.com/"},
+        "pt": {"profile": "instagram_pt", "handle": "@samarthkulkarni.pt", "email": "samarthkulkarni.pt@gmail.com", "url": "https://www.instagram.com/"},
+        "es": {"profile": "instagram_es", "handle": "@samarthkulkarni_es", "email": "samarthkulkarni16s@gmail.com", "url": "https://www.instagram.com/"},
     },
     # X (Twitter): same pattern as Instagram, not Pinterest/Facebook -- four
     # fully separate accounts/logins, one per lang, each its own "profile"
@@ -115,9 +115,9 @@ ACCOUNTS = {
     # but X/Hindi's login) -- that's fine, each (platform, lang) pair still
     # gets its own separate Chromium profile dir, so there's no collision.
     "x": {
-        "hi": {"profile": "x_hi", "handle": "@SamarthK_hi", "url": "https://x.com/"},
-        "ar": {"profile": "x_ar", "handle": "@SamarthK_Ar", "url": "https://x.com/"},
-        "pt": {"profile": "x_pt", "handle": "@SamarthK_pt", "url": "https://x.com/"},
-        "es": {"profile": "x_es", "handle": "@SamarthkEs1", "url": "https://x.com/"},
+        "hi": {"profile": "x_hi", "handle": "@SamarthK_hi", "email": "samarthkulkarni.es@gmail.com", "url": "https://x.com/"},
+        "ar": {"profile": "x_ar", "handle": "@SamarthK_Ar", "email": "samarthkulkarni16s@gmail.com", "url": "https://x.com/"},
+        "pt": {"profile": "x_pt", "handle": "@SamarthK_pt", "email": "samarthkulkarni.pt@gmail.com", "url": "https://x.com/"},
+        "es": {"profile": "x_es", "handle": "@SamarthkEs1", "email": "samarth.youtube1@gmail.com", "url": "https://x.com/"},
     },
 }
