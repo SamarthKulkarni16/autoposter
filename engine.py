@@ -204,9 +204,23 @@ def type_text(locator, text):
 
 
 def select_all_and_type(page, locator, text):
+    """
+    Clicks the field, selects everything in it, explicitly deletes the
+    selection, then types. The explicit Backspace (not just typing over the
+    selection) matters for contenteditable fields like YouTube's title box:
+    if the field's content is still settling from an async autofill (e.g.
+    YouTube prefilling the title from the uploaded filename) at the exact
+    moment we select+type, relying on "typing replaces selection" can lose
+    the race and leave a stray fragment of the old text. Select -> delete
+    -> (brief pause so any pending DOM update finishes) -> type is more
+    robust against that race.
+    """
     locator.click()
+    human.wait(0.1, 0.2)
     page.keyboard.press("Control+A")
-    human.wait(0.1, 0.3)
+    human.wait(0.1, 0.2)
+    page.keyboard.press("Backspace")
+    human.wait(0.2, 0.4)
     human.type_text(locator, text)
 
 

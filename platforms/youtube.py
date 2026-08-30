@@ -45,6 +45,13 @@ def post(ctx, page):
     # Wait for it to register the upload before touching title/desc fields
     engine.wait_for_text(page, "Details", timeout=90000)
 
+    # YouTube Studio auto-fills the title field from the uploaded filename
+    # (our files are named "<lang>.mp4", e.g. "en.mp4") via its own async JS
+    # shortly after the "Details" screen appears. Give that a moment to
+    # settle before we clear+type our own title, or the two can race and
+    # leave a stray filename fragment (e.g. "en") glued onto the title.
+    human.wait(1.5, 2.5)
+
     # Title field is focused by default with placeholder text selected
     title_field = engine.locate(page, role="textbox", name="Add a title", timeout=8000)
     engine.select_all_and_type(page, title_field, ctx["title"])

@@ -94,6 +94,11 @@ def main():
         engine.wait_for_text(page, "Details", timeout=90000)
         shot(page, "05_details_screen_reached")
 
+        # Let YouTube's own filename-based title autofill settle before we
+        # clear+type over it (see engine.select_all_and_type / platforms/youtube.py
+        # for why this matters with "<lang>.mp4" filenames).
+        human.wait(1.5, 2.5)
+
         title_field = engine.locate(page, role="textbox", name="Add a title", timeout=8000)
         engine.select_all_and_type(page, title_field, title)
         shot(page, "06_title_typed")
