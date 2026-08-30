@@ -28,11 +28,12 @@ MIN_GAP_BETWEEN_POSTS = (180, 480)   # seconds, randomized gap between posts
 LANGS = ["hi", "ar", "pt", "es"]
 
 # Which platforms are wired up in platforms/*.py. Add as you add each one.
-# NOTE: "pinterest", "facebook", and "instagram" are deliberately NOT in this
-# list yet -- their ACCOUNTS entries below exist so setup_all_profiles.py can
-# log accounts in, but pinterest.py and facebook.py are untested first
-# drafts (see their own docstrings) and instagram.py doesn't exist yet at
-# all. Add each platform here once its module exists and has been tested.
+# NOTE: "pinterest", "facebook", "instagram", and "x" are deliberately NOT in
+# this list yet -- their ACCOUNTS entries below exist so
+# setup_all_profiles.py can log accounts in, but pinterest.py/facebook.py/
+# instagram.py are untested first drafts (see their own docstrings) and
+# x.py doesn't exist yet at all. Add each platform here once its module
+# exists and has been tested.
 ENABLED_PLATFORMS = ["youtube"]
 
 # --- Accounts -------------------------------------------------------------
@@ -106,5 +107,17 @@ ACCOUNTS = {
         "ar": {"profile": "instagram_ar", "handle": "@samarthkulkarni.ar", "url": "https://www.instagram.com/"},
         "pt": {"profile": "instagram_pt", "handle": "@samarthkulkarni.pt", "url": "https://www.instagram.com/"},
         "es": {"profile": "instagram_es", "handle": "@samarthkulkarni_es", "url": "https://www.instagram.com/"},
+    },
+    # X (Twitter): same pattern as Instagram, not Pinterest/Facebook -- four
+    # fully separate accounts/logins, one per lang, each its own "profile"
+    # folder. Note the emails here overlap with OTHER platforms' emails
+    # above (e.g. samarthkulkarni.es@gmail.com is Instagram/Arabic's login
+    # but X/Hindi's login) -- that's fine, each (platform, lang) pair still
+    # gets its own separate Chromium profile dir, so there's no collision.
+    "x": {
+        "hi": {"profile": "x_hi", "handle": "@SamarthK_hi", "url": "https://x.com/"},
+        "ar": {"profile": "x_ar", "handle": "@SamarthK_Ar", "url": "https://x.com/"},
+        "pt": {"profile": "x_pt", "handle": "@SamarthK_pt", "url": "https://x.com/"},
+        "es": {"profile": "x_es", "handle": "@SamarthkEs1", "url": "https://x.com/"},
     },
 }
