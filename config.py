@@ -21,7 +21,11 @@ LOAD_WAIT_SEC = 3         # short settle pause after navigation, before interact
 POLL_INTERVAL_SEC = 120
 MIN_GAP_BETWEEN_POSTS = (180, 480)   # seconds, randomized gap between posts
 
-LANGS = ["en", "hi", "ar", "pt", "es"]
+# Languages main.py will actually build jobs for and post automatically.
+# "en" is deliberately left out -- English is being handled outside this
+# automation; the youtube/en account/profile/login are still fully intact
+# in ACCOUNTS below and via setup_profile.py, just not auto-posted to.
+LANGS = ["hi", "ar", "pt", "es"]
 
 # Which platforms are wired up in platforms/*.py. Add as you add each one.
 ENABLED_PLATFORMS = ["youtube"]
