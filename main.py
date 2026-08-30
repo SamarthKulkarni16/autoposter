@@ -79,6 +79,12 @@ def build_queue():
                     # share one logged-in profile and differ by board instead;
                     # None for youtube and anything else without a "board" key.
                     "board": account.get("board"),
+                    # Only set for platforms like facebook where several langs
+                    # share one logged-in profile but each posts as a
+                    # different Page (selected by navigating to that Page's
+                    # own "url" above, not by an in-page dropdown) -- this is
+                    # just the display name, for logging/sanity-checks.
+                    "page": account.get("page"),
                 })
     return jobs
 

@@ -28,10 +28,12 @@ MIN_GAP_BETWEEN_POSTS = (180, 480)   # seconds, randomized gap between posts
 LANGS = ["hi", "ar", "pt", "es"]
 
 # Which platforms are wired up in platforms/*.py. Add as you add each one.
-# NOTE: "pinterest" is deliberately NOT in this list yet -- its ACCOUNTS
-# entries below exist so setup_all_profiles.py can log the shared account in,
-# but there's no platforms/pinterest.py post() flow written yet. Add it here
-# once that module exists and has been tested.
+# NOTE: "pinterest" and "facebook" are deliberately NOT in this list yet --
+# their ACCOUNTS entries below exist so setup_all_profiles.py can log the
+# shared accounts in, but there's no platforms/pinterest.py or
+# platforms/facebook.py post() flow written for facebook yet (pinterest.py
+# exists but is an untested first draft -- see its own docstring). Add each
+# platform here once its module exists and has been tested.
 ENABLED_PLATFORMS = ["youtube"]
 
 # --- Accounts -------------------------------------------------------------
@@ -77,6 +79,23 @@ ACCOUNTS = {
         "ar": {"profile": "pinterest_shared", "board": "Arabic", "url": "https://www.pinterest.com/pin-creation-tool/"},
         "pt": {"profile": "pinterest_shared", "board": "Portuguese", "url": "https://www.pinterest.com/pin-creation-tool/"},
         "es": {"profile": "pinterest_shared", "board": "Spanish", "url": "https://www.pinterest.com/pin-creation-tool/"},
+    },
+    # Facebook: same shared-login idea as Pinterest above, but the four
+    # langs are four separate PAGES (not a dropdown choice on one shared
+    # URL) -- "Samarth Kulkarni HI"/"Arabic"/"Portuguese"/"ES" -- all
+    # administered by the one shared personal account
+    # (samarth.youtube1@gmail.com). So "profile" is still the SAME shared
+    # folder for all four (one login covers all four Pages), but unlike
+    # Pinterest, "url" also differs per lang -- each Page has its own
+    # distinct URL, and posting as that Page means actually navigating
+    # there, not selecting an option within one shared composer. "page" is
+    # the Page's display name, kept here for logging/sanity-checks in
+    # platforms/facebook.py (not written yet) rather than for navigation.
+    "facebook": {
+        "hi": {"profile": "facebook_shared", "page": "Samarth Kulkarni HI", "url": "https://www.facebook.com/profile.php?id=61589758439087"},
+        "ar": {"profile": "facebook_shared", "page": "Samarth Kulkarni Arabic", "url": "https://www.facebook.com/profile.php?id=61589615735525"},
+        "pt": {"profile": "facebook_shared", "page": "Samarth Kulkarni Portuguese", "url": "https://www.facebook.com/profile.php?id=61589630883062"},
+        "es": {"profile": "facebook_shared", "page": "Samarth Kulkarni ES", "url": "https://www.facebook.com/profile.php?id=61589796354178"},
     },
     # "instagram": {
     #     "hi": {"profile": "instagram_hi", "url": "https://www.instagram.com"},
