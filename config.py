@@ -28,12 +28,11 @@ MIN_GAP_BETWEEN_POSTS = (180, 480)   # seconds, randomized gap between posts
 LANGS = ["hi", "ar", "pt", "es"]
 
 # Which platforms are wired up in platforms/*.py. Add as you add each one.
-# NOTE: "pinterest" and "facebook" are deliberately NOT in this list yet --
-# their ACCOUNTS entries below exist so setup_all_profiles.py can log the
-# shared accounts in, but there's no platforms/pinterest.py or
-# platforms/facebook.py post() flow written for facebook yet (pinterest.py
-# exists but is an untested first draft -- see its own docstring). Add each
-# platform here once its module exists and has been tested.
+# NOTE: "pinterest", "facebook", and "instagram" are deliberately NOT in this
+# list yet -- their ACCOUNTS entries below exist so setup_all_profiles.py can
+# log accounts in, but pinterest.py and facebook.py are untested first
+# drafts (see their own docstrings) and instagram.py doesn't exist yet at
+# all. Add each platform here once its module exists and has been tested.
 ENABLED_PLATFORMS = ["youtube"]
 
 # --- Accounts -------------------------------------------------------------
@@ -97,8 +96,15 @@ ACCOUNTS = {
         "pt": {"profile": "facebook_shared", "page": "Samarth Kulkarni Portuguese", "url": "https://www.facebook.com/profile.php?id=61589630883062"},
         "es": {"profile": "facebook_shared", "page": "Samarth Kulkarni ES", "url": "https://www.facebook.com/profile.php?id=61589796354178"},
     },
-    # "instagram": {
-    #     "hi": {"profile": "instagram_hi", "url": "https://www.instagram.com"},
-    #     ...  (no "en" entry here either)
-    # },
+    # Instagram: back to YouTube's pattern, not Pinterest/Facebook's -- four
+    # fully separate accounts, one per lang, each its own login (own email,
+    # own handle), so each gets its own "profile" folder just like youtube
+    # above. "handle" is just for logging/sanity-checks (e.g. confirming the
+    # right account ended up logged in), not used for navigation.
+    "instagram": {
+        "hi": {"profile": "instagram_hi", "handle": "@samarthkulkarni_hi", "url": "https://www.instagram.com/"},
+        "ar": {"profile": "instagram_ar", "handle": "@samarthkulkarni.ar", "url": "https://www.instagram.com/"},
+        "pt": {"profile": "instagram_pt", "handle": "@samarthkulkarni.pt", "url": "https://www.instagram.com/"},
+        "es": {"profile": "instagram_es", "handle": "@samarthkulkarni_es", "url": "https://www.instagram.com/"},
+    },
 }

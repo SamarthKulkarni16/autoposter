@@ -85,6 +85,10 @@ def build_queue():
                     # own "url" above, not by an in-page dropdown) -- this is
                     # just the display name, for logging/sanity-checks.
                     "page": account.get("page"),
+                    # Only set for instagram (each lang has its own separate
+                    # account/login already, so this isn't needed to select
+                    # anything at post time) -- for logging/sanity-checks.
+                    "handle": account.get("handle"),
                 })
     return jobs
 
