@@ -57,7 +57,8 @@ def build_queue():
                      if p in config.ENABLED_PLATFORMS]
         for platform in platforms:
             for lang in config.LANGS:
-                if lang not in config.ACCOUNTS.get(platform, {}):
+                account = config.ACCOUNTS.get(platform, {}).get(lang)
+                if account is None:
                     continue  # no account configured for this platform/lang yet
                 video_file = video_dir / f"{lang}.mp4"
                 if not video_file.exists():
@@ -74,6 +75,10 @@ def build_queue():
                     "title": meta.get("title", {}).get(lang, video_id),
                     "caption": meta.get("caption", {}).get(lang, ""),
                     "tags": meta.get("tags", {}).get(lang, ""),
+                    # Only set for platforms like pinterest where several langs
+                    # share one logged-in profile and differ by board instead;
+                    # None for youtube and anything else without a "board" key.
+                    "board": account.get("board"),
                 })
     return jobs
 

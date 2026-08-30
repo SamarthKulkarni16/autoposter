@@ -28,6 +28,10 @@ MIN_GAP_BETWEEN_POSTS = (180, 480)   # seconds, randomized gap between posts
 LANGS = ["hi", "ar", "pt", "es"]
 
 # Which platforms are wired up in platforms/*.py. Add as you add each one.
+# NOTE: "pinterest" is deliberately NOT in this list yet -- its ACCOUNTS
+# entries below exist so setup_all_profiles.py can log the shared account in,
+# but there's no platforms/pinterest.py post() flow written yet. Add it here
+# once that module exists and has been tested.
 ENABLED_PLATFORMS = ["youtube"]
 
 # --- Accounts -------------------------------------------------------------
@@ -35,7 +39,9 @@ ENABLED_PLATFORMS = ["youtube"]
 # created automatically the first time you run setup_profile.py for it.
 # "profile_path" = an absolute path to an existing Chromium user-data-dir to reuse
 # instead (e.g. one already logged in outside this tool). "url" = where the
-# account should land, logged in, ready to post.
+# account should land, logged in, ready to post. "board" (optional) = the
+# Pinterest board name to select for this lang, when several langs share one
+# logged-in "profile" (see "pinterest" below) instead of each having its own.
 #
 # No "en" entries, for youtube or any platform added below -- English is
 # handled outside this automation entirely, across every social platform.
@@ -54,6 +60,23 @@ ACCOUNTS = {
         "ar": {"profile": "youtube_ar", "url": "https://studio.youtube.com"},
         "pt": {"profile": "youtube_pt", "url": "https://studio.youtube.com"},
         "es": {"profile": "youtube_es", "url": "https://studio.youtube.com"},
+    },
+    # Pinterest: unlike YouTube, hi/ar/pt/es are NOT four separate logins --
+    # they're four boards ("Hindi"/"Arabic"/"Portuguese"/"Spanish") under one
+    # shared account (samarth.youtube1@gmail.com), so every lang below points
+    # at the SAME "profile" folder (one login covers all four -- logging into
+    # "pinterest"/"hi" via setup_profile.py/setup_all_profiles.py also logs in
+    # "ar", "pt", and "es", since it's literally the same Chromium profile
+    # dir/session). Only "board" differs per lang; platforms/pinterest.py
+    # (not written yet) is expected to read ctx["board"] and pick that board
+    # when creating each pin. The English Pinterest account
+    # (samarth1616s@gmail.com) is a fully separate account and is
+    # intentionally NOT configured here at all.
+    "pinterest": {
+        "hi": {"profile": "pinterest_shared", "board": "Hindi", "url": "https://www.pinterest.com/pin-creation-tool/"},
+        "ar": {"profile": "pinterest_shared", "board": "Arabic", "url": "https://www.pinterest.com/pin-creation-tool/"},
+        "pt": {"profile": "pinterest_shared", "board": "Portuguese", "url": "https://www.pinterest.com/pin-creation-tool/"},
+        "es": {"profile": "pinterest_shared", "board": "Spanish", "url": "https://www.pinterest.com/pin-creation-tool/"},
     },
     # "instagram": {
     #     "hi": {"profile": "instagram_hi", "url": "https://www.instagram.com"},
