@@ -1,0 +1,7 @@
+{
+  "status": "stopped",
+  "message": "Supervisor stopped",
+  "timestamp": "2026-08-29T15:10:23.085176",
+  "poll_count": 473,
+  "supervisor_pid": 60462
+}
