@@ -45,12 +45,15 @@ def post(ctx, page):
             f"Check config.ACCOUNTS['pinterest'][lang]['board']."
         )
 
-    # "Upload your media" is one big dropzone/button -- unlike YouTube's
-    # two-step (button that opens a dialog, THEN a SELECT FILES button
-    # inside it), this one click is expected to trigger the native file
-    # picker directly.
-    upload_trigger = engine.locate(page, text="Upload your media", timeout=60000)
-    engine.upload_file(page, upload_trigger, ctx["video_path"])
+    # LIVE-TESTING FIX (Aug 2026): originally clicked the "Upload your
+    # media" label and waited for a native file-chooser dialog, same as
+    # youtube.py's pattern. That timed out after 31 retries -- turns out
+    # Pinterest's dropzone is backed by a real <input type="file"
+    # id="storyboard-upload-input"> already sitting in the DOM, overlapping
+    # the visible label and intercepting the click itself (no dialog ever
+    # opens for Playwright to catch). Setting the file directly on that
+    # input skips the click/interception fight entirely.
+    engine.upload_file_direct(page, ctx["video_path"], selector="#storyboard-upload-input")
 
     # Give the upload a moment to register before touching the title field,
     # same reasoning as youtube.py's post-upload settle wait.
