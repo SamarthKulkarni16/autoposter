@@ -177,6 +177,31 @@ def locate(page, text=None, role=None, name=None, exact=False, timeout=8000):
         ) from e
 
 
+def locate_by_placeholder(page, placeholder_text, exact=False, timeout=8000):
+    """
+    Returns a Locator for an input/textarea by its placeholder attribute,
+    for fields where a separate visible <label> element gives the field a
+    DIFFERENT accessible name than its placeholder text -- e.g. Pinterest's
+    Title field has a small visible <label>Title</label> above the box, so
+    Chromium computes role=textbox, name="Title", NOT the placeholder text
+    "Tell everyone what your Pin is about" that locate(role=..., name=...)
+    was matching against (confirmed via live-testing: that 15s timeout was
+    a naming mismatch, not the field actually being absent/hidden -- the
+    failure screenshot showed the field rendered normally). Waits for
+    visible, same contract/screenshot-on-timeout as locate().
+    """
+    timeout = _fast_timeout(timeout)
+    try:
+        locator = page.get_by_placeholder(placeholder_text, exact=exact).first
+        locator.wait_for(state="visible", timeout=timeout)
+        return locator
+    except PWTimeoutError as e:
+        shot_path = _save_failure(placeholder_text.replace(" ", "_"), page)
+        raise StepFailed(
+            f"Could not find placeholder '{placeholder_text}'. Screenshot saved to {shot_path}"
+        ) from e
+
+
 def click_text(page, label_text, exact=False, timeout=8000, retries=2):
     last_err = None
     for attempt in range(retries + 1):
