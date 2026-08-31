@@ -59,12 +59,19 @@ def post(ctx, page):
     # same reasoning as youtube.py's post-upload settle wait.
     human.wait(1.5, 2.5)
 
-    # Title field -- placeholder/label text is "Tell everyone what your Pin
-    # is about". select_all_and_type already clears any pre-filled text
-    # before typing, which matches "if there is anything already, delete it
-    # first" from the described sequence.
-    title_field = engine.locate(
-        page, role="textbox", name="Tell everyone what your Pin is about",
+    # LIVE-TESTING FIX (Aug 2026): originally matched by role="textbox",
+    # name="Tell everyone what your Pin is about", assuming that text was
+    # the field's accessible name. It isn't -- the field has a separate
+    # visible <label>Title</label> above it, so Chromium computes the
+    # accessible name as "Title" instead, and "Tell everyone..." is only
+    # the placeholder shown inside the empty box. That mismatch is why the
+    # locate() call kept timing out even once upload/encoding were both
+    # confirmed fine (the failure screenshot showed the field rendered
+    # normally). Matching by placeholder instead of accessible name fixes
+    # it. select_all_and_type still clears any pre-filled text before
+    # typing, same as before.
+    title_field = engine.locate_by_placeholder(
+        page, "Tell everyone what your Pin is about",
         exact=False, timeout=15000,
     )
     engine.select_all_and_type(page, title_field, ctx["title"])
