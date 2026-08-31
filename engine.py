@@ -250,6 +250,24 @@ def upload_file(page, trigger_locator, file_path):
     human.wait(1, 2)
 
 
+def upload_file_direct(page, file_path, selector='input[type="file"]'):
+    """
+    For upload widgets where a real <input type="file"> is already present
+    in the DOM (not popped open via an OS-level file-chooser dialog
+    triggered by a click) -- e.g. Pinterest's "Upload your media" dropzone,
+    where the input overlaps the visible label and intercepts pointer
+    events, so click_locator()+expect_file_chooser() (upload_file()'s
+    approach, correct for YouTube/Facebook/Instagram/X's real dialog-based
+    pickers) just fights the overlapping input for retry after retry and
+    times out. set_input_files() writes straight to the input -- it doesn't
+    require the element to be visible, clickable, or unobstructed -- so this
+    skips the click and the interception fight entirely.
+    """
+    file_input = page.locator(selector).first
+    file_input.set_input_files(str(file_path))
+    human.wait(1, 2)
+
+
 def click_text_in_scrollable(page, label_text, exact=False, max_scrolls=8, scroll_amount=250, timeout=2500):
     """
     For a target that's inside its OWN small scrollable panel (not the page,
