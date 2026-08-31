@@ -58,10 +58,10 @@ ACCOUNTS = {
         # hit Google actively blocking Playwright's Firefox at sign-in
         # ("This browser or app may not be secure"), so this account now
         # uses a fresh Chromium profile like every other account.
-        "hi": {"profile": "youtube_hi", "url": "https://studio.youtube.com"},
-        "ar": {"profile": "youtube_ar", "url": "https://studio.youtube.com"},
-        "pt": {"profile": "youtube_pt", "url": "https://studio.youtube.com"},
-        "es": {"profile": "youtube_es", "url": "https://studio.youtube.com"},
+        "hi": {"profile": "youtube_hi", "email": "samarth.youtube1@gmail.com", "url": "https://studio.youtube.com"},
+        "ar": {"profile": "youtube_ar", "email": "samarthkulkarni16s@gmail.com", "url": "https://studio.youtube.com"},
+        "pt": {"profile": "youtube_pt", "email": "samarthkulkarni.pt@gmail.com", "url": "https://studio.youtube.com"},
+        "es": {"profile": "youtube_es", "email": "samarthkulkarni.es@gmail.com", "url": "https://studio.youtube.com"},
     },
     # Pinterest: unlike YouTube, hi/ar/pt/es are NOT four separate logins --
     # they're four boards ("Hindi"/"Arabic"/"Portuguese"/"Spanish") under one
