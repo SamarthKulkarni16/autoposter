@@ -104,9 +104,28 @@ def open_account(platform, lang):
     else:
         launch_kwargs = dict(viewport=None)
 
+    # Some platforms (Pinterest, Facebook) validate the uploaded video by
+    # decoding it CLIENT-SIDE before enabling the composer. Playwright's bundled
+    # Chromium on this ARM64 box has no H.264 decoder, so those platforms reject
+    # every H.264 MP4 ("not encoded in H.264" / title stays disabled forever).
+    # For those platforms, launch a real H.264-capable browser instead (the
+    # Canonical chromium snap, or any browser passed in SNAP_CHROMIUM_EXECUTABLE).
+    # It's still Chromium-family, so the same user-data-dir + logins work.
+    executable_path = None
+    if platform in getattr(config, "PLATFORMS_NEEDING_H264", set()) and not config.HEADLESS:
+        executable_path = getattr(config, "SNAP_CHROMIUM_EXECUTABLE", None)
+        if not executable_path or not os.path.exists(executable_path):
+            raise StepFailed(
+                f"Platform '{platform}' needs an H.264-capable browser, but "
+                f"config.SNAP_CHROMIUM_EXECUTABLE ({executable_path!r}) is not a "
+                f"valid path. Install the chromium snap (sudo snap install chromium) "
+                f"or point SNAP_CHROMIUM_EXECUTABLE at an H.264-capable chrome."
+            )
+
     context = _playwright().chromium.launch_persistent_context(
         user_data_dir,
         headless=config.HEADLESS,
+        executable_path=executable_path,
         args=["--disable-blink-features=AutomationControlled", "--start-maximized"],
         **launch_kwargs,
     )
@@ -200,6 +219,24 @@ def locate_by_placeholder(page, placeholder_text, exact=False, timeout=8000):
         raise StepFailed(
             f"Could not find placeholder '{placeholder_text}'. Screenshot saved to {shot_path}"
         ) from e
+
+
+def js_click_text(page, label_text, exact=False, timeout=8000):
+    """
+    Find a text element and click it via JavaScript dispatchEvent, bypassing
+    Playwright's strict actionability checks ("element receives pointer events").
+    Facebook's Reel composer button sits inside a heavily layered CSS layout
+    where a sibling/overlay element technically intercepts the click even though
+    the underlying click handler fires correctly. A JS click fires the real DOM
+    event without the actionability gate.
+    """
+    locator = locate(page, text=label_text, exact=exact, timeout=timeout)
+    locator.scroll_into_view_if_needed(timeout=timeout)
+    human.wait(0.3, 0.6)
+    # Dispatch a real click in the element's own JS context -- this bypasses
+    # Playwright's pointer-event actionability gate entirely.
+    locator.evaluate("el => el.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}))")
+    human.wait(0.5, 1)
 
 
 def click_text(page, label_text, exact=False, timeout=8000, retries=2):
@@ -334,6 +371,27 @@ def click_text_in_scrollable(page, label_text, exact=False, max_scrolls=8, scrol
     raise StepFailed(
         f"Could not find '{label_text}' after scrolling. Screenshot saved to {shot_path}"
     )
+
+
+def wait_for_enabled(page, label_text, exact=True, timeout=240000):
+    """
+    Block until a clickable control (usually a button) becomes enabled.
+    Some platforms keep the continue button disabled until they finish their
+    own processing of an uploaded file (Pinterest's title field, Facebook
+    Reel's "Next" button both do this) -- wait it out rather than clicking
+    early and falling into a timeout loop.
+    """
+    deadline = time.time() + timeout / 1000.0
+    while time.time() < deadline:
+        try:
+            loc = page.get_by_text(label_text, exact=exact).first
+            if loc.is_enabled():
+                return loc
+        except Exception:
+            pass
+        human.wait(1, 2)
+    shot = _save_failure(f"{label_text}_not_enabled", page)
+    raise StepFailed(f"'{label_text}' never became enabled. Screenshot saved to {shot}")
 
 
 def wait_for_text(page, label_text, exact=False, timeout=60000):

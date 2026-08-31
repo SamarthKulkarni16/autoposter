@@ -53,8 +53,15 @@ fi
 
 if [ ! -f "outbox/${JOB}/${LANG_CODE}.mp4" ]; then
   echo "[drive] generating throwaway ${LANG_CODE}.mp4"
-  ffmpeg -f lavfi -i color=c=blue:s=720x1280:d=8 -f lavfi -i anullsrc=r=44100:cl=mono \
-    -t 8 -c:v libx264 -profile:v baseline -pix_fmt yuv420p -c:a aac \
+  # LIVE-TESTING FIX (Aug 2026): Pinterest rejects the old throwaway video
+  # generation ('This video isn't encoded in H.264 or H.265') -- the default
+  # -c:a aac produced HE-AAC audio, which Pinterest's parser flags and then
+  # keeps the title field disabled forever. Re-encode to a clean, widely
+  # accepted H.264 MP4: Main profile + yuv420p + explicit AAC-LC stereo audio,
+  # matching the codec signature of the real videos that post successfully.
+  ffmpeg -f lavfi -i color=c=blue:s=720x1280:d=8 -f lavfi -i anullsrc=r=44100:cl=stereo \
+    -t 8 -c:v libx264 -profile:v main -pix_fmt yuv420p \
+    -c:a aac -profile:a aac_lc -b:a 128k -ac 2 -ar 44100 \
     -movflags +faststart -y "outbox/${JOB}/${LANG_CODE}.mp4" -loglevel error
 fi
 

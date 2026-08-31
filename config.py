@@ -36,6 +36,32 @@ LANGS = ["hi", "ar", "pt", "es"]
 # exists and has been tested.
 ENABLED_PLATFORMS = ["pinterest"]
 
+# H.264 decode support.
+#
+# Playwright's bundled Chromium on this ARM64 Linux box is compiled WITHOUT
+# proprietary codecs: `MediaSource.isTypeSupported('video/mp4; codecs="avc1..."')`
+# returns False for every H.264 profile (confirmed live). That matters because
+# some platforms validate the uploaded video CLIENT-SIDE by decoding it in the
+# browser's <video>/MSE pipeline before enabling the rest of the composer:
+#   - Pinterest rejects any H.264 MP4 with "This video isn't encoded in H.264 or
+#     H.265" and never enables the Title field (the original failure behind the
+#     endless "title disabled" loop)
+#   - Facebook's Reel uploader similarly needs the browser to ingest the video
+# YouTube is unaffected: it uploads server-side and doesn't require client-side
+# H.264 decoding, so it keeps working on Playwright's bundled Chromium.
+#
+# For platforms that DO need client-side video decoding, we launch a real
+# H.264-capable browser instead of Playwright's bundled build. Canonical's
+# `chromium` SNAP ships proprietary codecs (arm64 included) and is drivable by
+# Playwright via executable_path. It reads/writes the same Chromium user-data-dir
+# format, so the existing logged-in profiles carry over unchanged.
+#
+# Set SNAP_CHROMIUM_EXECUTABLE to the snap launcher (or any H.264-capable
+# chrome/chromium binary). PLATFORMS_NEEDING_H264 lists which platforms must use
+# it (any platform that client-side decodes the uploaded video).
+SNAP_CHROMIUM_EXECUTABLE = "/snap/bin/chromium"
+PLATFORMS_NEEDING_H264 = {"pinterest", "facebook"}
+
 # --- Accounts -------------------------------------------------------------
 # One entry per (platform, lang). "profile" = folder name under profiles/,
 # created automatically the first time you run setup_profile.py for it.

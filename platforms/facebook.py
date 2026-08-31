@@ -26,6 +26,9 @@ strings are best guesses from the described sequence, not confirmed
 accessible names/roles. Expect at least one round of live-testing fixes.
 """
 
+import time
+
+import config
 import engine
 import human_actions as human
 
@@ -53,27 +56,28 @@ def post(ctx, page):
             "click sequence and add it to this file before running this."
         )
 
-    # "What's on your mind" can sit anywhere from mid-page to near the
-    # bottom depending on the Page's layout/recent activity, per the
-    # described sequence -- reuse the scroll-and-find helper built for
-    # pinterest.py's board picker rather than assuming a fixed scroll depth.
-    engine.click_text_in_scrollable(page, "What's on your mind", max_scrolls=12)
-
-    # "Reel" sits at the bottom-left of that composer, with its own logo to
-    # the right of the text -- get_by_text should still match on the text
-    # portion regardless of the adjacent icon.
-    engine.click_text(page, "Reel", exact=False, timeout=15000)
-    human.wait(0.5, 1)
+    # LIVE-TESTING FIX (Aug 2026): the Facebook Page URL loads in VIEWER mode
+    # ("You're viewing as yourself, not the Page") unless we first switch into
+    # the Page -- the wall composer ("What's on your mind?") simply does not
+    # exist until we do. The login profile is the personal account that
+    # administers these Pages, so a "Switch Now" / "Switch into ... Page"
+    # control is present; click it to become the Page so the composer appears.
+    _open_reel_composer(page, ctx)
 
     _upload_reel_video(page, ctx["video_path"])
 
-    # Scroll a bit before Next per the described sequence (the Next button
-    # may start below the fold in the reel-creation panel).
+    # Facebook's Reel "Next" stays disabled until the uploaded video finishes
+    # its own processing (transcode/preview) -- same pattern as Pinterest's
+    # title field. Wait for it to enable instead of clicking early and looping
+    # on a disabled button. Can take a couple minutes for a real clip.
+    engine.wait_for_enabled(page, "Next", exact=True, timeout=240000)
+    human.wait(1, 2)
     engine.click_text_in_scrollable(page, "Next", max_scrolls=6)
     human.wait(0.5, 1)
     # Same "Next" button/location clicked a second time (per description: a
     # second, separate screen -- crop/edit, then details -- both use "Next"
     # at the same spot).
+    engine.wait_for_enabled(page, "Next", exact=True, timeout=60000)
     engine.click_role(page, "button", "Next", exact=True, timeout=15000)
     human.wait(0.5, 1)
 
@@ -92,25 +96,136 @@ def post(ctx, page):
     engine.wait_for_text(page, "Your reel was posted", exact=False, timeout=60000)
 
 
+def _open_reel_composer(page, ctx):
+    """
+    Switch into the Page (if needed), open the wall composer's Reel option,
+    and return with the Reel creation flow ready for upload. Retries a few
+    times with a fresh page reload (transient overlays), logging each step so
+    we can see exactly which one blocks.
+    """
+    import logging
+    log = logging.getLogger("facebook")
+    for attempt in range(3):
+        try:
+            _switch_into_page(page); log.info("[FB] switch done (attempt %d)", attempt)
+            engine.click_text_in_scrollable(page, "What's on your mind", max_scrolls=12)
+            log.info("[FB] clicked 'What's on your mind' (attempt %d)", attempt)
+            human.wait(2, 3)
+            # JS click bypasses the pointer-event gate that Playwright's strict
+            # click hits on the layered composer (confirmed via live DOM probe).
+            engine.js_click_text(page, "Reel", exact=True, timeout=20000)
+            log.info("[FB] JS-clicked 'Reel' (attempt %d)", attempt)
+            human.wait(2, 3)
+            engine.wait_for_text(page, "Create reel", exact=False, timeout=15000)
+            log.info("[FB] Reel composer opened (attempt %d)", attempt)
+            return
+        except engine.StepFailed as e:
+            log.warning("[FB] attempt %d failed: %s", attempt, str(e)[:120])
+            try:
+                _save_failure_screenshot(page, "fb_reel_open")
+            except Exception:
+                pass
+            try:
+                page_url = config.ACCOUNTS["facebook"][ctx["lang"]]["url"]
+                page.goto(page_url, wait_until="domcontentloaded")
+                human.wait(3, 5)
+            except Exception:
+                pass
+    raise engine.StepFailed(
+        "Could not open the Reel composer after retries (transient overlay "
+        "kept intercepting)."
+    )
+
+
+def _save_failure_screenshot(page, label):
+    from datetime import datetime as _dt
+    from pathlib import Path as _Path
+    ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+    path = _Path(__file__).parent / "failures" / f"{label}_{ts}.png"
+    page.screenshot(path=str(path), full_page=True)
+    return path
+
+
+def _switch_into_page(page):
+    """
+    If the Page loaded in viewer mode (viewing as the admin's personal
+    account instead of as the Page), switch into the Page first so the wall
+    composer ("What's on your mind?") exists. The "Switch Now"/"Switch into
+    ... Page" control disappears once we're already in the Page, so this is
+    a best-effort first step that only acts when the control is present.
+    """
+    for label in ("Switch Now", "Switch into", "Switch"):
+        try:
+            el = page.get_by_text(label, exact=True).first
+            if el.count() and el.is_visible():
+                engine.click_locator(page, el, timeout=8000)
+                human.wait(3, 5)
+                # Switching can leave a full-page overlay/lightbox on top that
+                # intercepts the composer clicks -- dismiss it if present.
+                try:
+                    page.keyboard.press("Escape")
+                    human.wait(1, 2)
+                except Exception:
+                    pass
+                return
+        except Exception:
+            continue
+
+
 def _upload_reel_video(page, video_path):
     """
-    Clicks "Add Video" and selects the file. Per the described known glitch,
-    the native file picker can silently reopen/re-trigger right after the
-    first selection -- if the same "Add Video" trigger is still there a
-    moment later, the first selection didn't register and needs to be redone
-    (up to 2 extra attempts before giving up).
+    Uploads the Reel video. The composer's file intake is genuinely finicky,
+    so this uses the ONLY method PROBED to actually register a clip: dispatch
+    a native click() on the composer's video <input type=file> inside an
+    expect_file_chooser, then set_files() -- going through the browser's real
+    file-input path that Facebook's uploader listens on. (Probed live:
+    set_input_files() on the visible/dedicated input left "Next" disabled
+    forever, as did clicking the "Add Video"/"Upload" text; only the native
+    click -> chooser -> set_files path removed the "upload your video"
+    placeholder and started processing.)
     """
-    trigger = engine.locate(page, text="Add Video", exact=False, timeout=30000)
-    engine.upload_file(page, trigger, video_path)
-    human.wait(1.5, 3)
+    # The composer's video input -- first accept*="video/mp4" input.
+    # Wait until the dropzone placeholder is actually rendered so the composer
+    # is fully interactive before we click its input (grabbing it too early can
+    # target a replacing/detached node).
+    try:
+        page.get_by_text("Upload your video", exact=False).first.wait_for(
+            state="visible", timeout=15000
+        )
+    except Exception:
+        pass  # placeholder may not be worded exactly; proceed anyway
+    human.wait(1, 2)
+    video_input = page.locator('input[type="file"][accept*="video/mp4"]').first
+    video_input.wait_for(state="attached", timeout=30000)
 
-    for _ in range(2):
+    last_err = None
+    for attempt in range(4):
         try:
-            still_there = engine.locate(page, text="Add Video", exact=False, timeout=3000)
-        except engine.StepFailed:
-            return  # trigger's gone -- upload registered, move on
-        engine.upload_file(page, still_there, video_path)
-        human.wait(1.5, 3)
+            with page.expect_file_chooser(timeout=15000) as fc:
+                video_input.evaluate("el => el.click()")
+            fc.value.set_files(str(video_path))
+            # Poll up to ~40s for the upload to register (placeholder leaves).
+            registered = False
+            deadline = time.time() + 40
+            while time.time() < deadline:
+                try:
+                    page.get_by_text("Upload your video", exact=False).first.wait_for(
+                        state="visible", timeout=2000
+                    )
+                except Exception:
+                    registered = True
+                    break
+                human.wait(1, 2)
+            if registered:
+                human.wait(2, 3)
+                return
+            last_err = ValueError("upload did not register")
+            human.wait(2, 3)
+        except Exception as e:
+            last_err = e
+            human.wait(2, 3)
+    engine._save_failure("fb_reel_upload", page)
+    raise engine.StepFailed(f"Reel video upload failed after retries: {last_err}")
 
 
 def _ensure_public(page):
