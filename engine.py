@@ -238,7 +238,7 @@ def type_text(locator, text):
     human.type_text(locator, text)
 
 
-def select_all_and_type(page, locator, text):
+def select_all_and_type(page, locator, text, timeout=30000):
     """
     Clicks the field, selects everything in it, explicitly deletes the
     selection, then types. The explicit Backspace (not just typing over the
@@ -249,8 +249,17 @@ def select_all_and_type(page, locator, text):
     the race and leave a stray fragment of the old text. Select -> delete
     -> (brief pause so any pending DOM update finishes) -> type is more
     robust against that race.
+
+    `timeout` is forwarded to the initial click(), which is where
+    Playwright's visible/enabled/stable actionability checks actually
+    happen -- so a caller whose field stays genuinely disabled for a while
+    (e.g. Pinterest's title field, locked until the platform finishes its
+    own server-side video processing -- normal Pinterest behavior,
+    confirmed via live-testing and Pinterest's own docs/community reports
+    that this can take well over the default 30s, not an automation-
+    detection thing) can pass a much longer timeout than the default.
     """
-    locator.click()
+    locator.click(timeout=timeout)
     human.wait(0.1, 0.2)
     page.keyboard.press("Control+A")
     human.wait(0.1, 0.2)
