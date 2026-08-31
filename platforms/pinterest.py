@@ -20,8 +20,11 @@ confirmed accessible names/roles. Expect to need at least one round of
 live-testing fixes, the same way youtube.py did.
 """
 
+import logging
 import engine
 import human_actions as human
+
+log = logging.getLogger("autoposter")
 
 
 def post(ctx, page):
@@ -74,7 +77,19 @@ def post(ctx, page):
         page, "Tell everyone what your Pin is about",
         exact=False, timeout=15000,
     )
-    engine.select_all_and_type(page, title_field, ctx["title"])
+
+    # LIVE-TESTING FIX (Aug 2026): the field is visible immediately but
+    # stays disabled (<input disabled ... id="storyboard-selector-title">)
+    # until Pinterest finishes its own server-side video upload+processing
+    # -- normal Pinterest behavior (their docs note video Pins "may require
+    # additional processing time"; their community forum has reports of
+    # this taking several minutes on a slow connection/large file), not
+    # something particular to this automation. select_all_and_type()'s
+    # click() is what actually waits for "enabled", so give it a generous
+    # timeout instead of the 30s default so it outlasts real processing
+    # time rather than giving up early.
+    log.info(f"Waiting for Pinterest to finish processing the video (lang={ctx.get('lang')})...")
+    engine.select_all_and_type(page, title_field, ctx["title"], timeout=180000)
 
     _select_board(page, board)
 
