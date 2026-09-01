@@ -61,7 +61,7 @@ if [ ! -f "outbox/${JOB}/${LANG_CODE}.mp4" ]; then
   # matching the codec signature of the real videos that post successfully.
   ffmpeg -f lavfi -i color=c=blue:s=720x1280:d=8 -f lavfi -i anullsrc=r=44100:cl=stereo \
     -t 8 -c:v libx264 -profile:v main -pix_fmt yuv420p \
-    -c:a aac -profile:a aac_lc -b:a 128k -ac 2 -ar 44100 \
+    -c:a aac -profile:a aac_low -b:a 128k -ac 2 -ar 44100 \
     -movflags +faststart -y "outbox/${JOB}/${LANG_CODE}.mp4" -loglevel error
 fi
 

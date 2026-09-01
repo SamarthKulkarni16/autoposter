@@ -34,7 +34,7 @@ LANGS = ["hi", "ar", "pt", "es"]
 # instagram.py are untested first drafts (see their own docstrings) and
 # x.py doesn't exist yet at all. Add each platform here once its module
 # exists and has been tested.
-ENABLED_PLATFORMS = ["pinterest"]
+ENABLED_PLATFORMS = ["facebook"]
 
 # H.264 decode support.
 #

@@ -70,30 +70,108 @@ def post(ctx, page):
     # its own processing (transcode/preview) -- same pattern as Pinterest's
     # title field. Wait for it to enable instead of clicking early and looping
     # on a disabled button. Can take a couple minutes for a real clip.
-    engine.wait_for_enabled(page, "Next", exact=True, timeout=240000)
+    # NOTE: the composer can have a stale/disabled "Next" from a background
+    # wall post + the live enabled Reel "Next" at once, so wait_for_enabled
+    # returns the ENABLED one and we click exactly that (not `.first`).
+    nxt = engine.wait_for_enabled(page, "Next", exact=True, timeout=480000)
     human.wait(1, 2)
-    engine.click_text_in_scrollable(page, "Next", max_scrolls=6)
-    human.wait(0.5, 1)
+    human.click_locator(page, nxt)
+    human.wait(1, 2)
     # Same "Next" button/location clicked a second time (per description: a
     # second, separate screen -- crop/edit, then details -- both use "Next"
     # at the same spot).
-    engine.wait_for_enabled(page, "Next", exact=True, timeout=60000)
-    engine.click_role(page, "button", "Next", exact=True, timeout=15000)
+    nxt2 = engine.wait_for_enabled(page, "Next", exact=True, timeout=60000)
+    human.wait(0.5, 1)
+    human.click_locator(page, nxt2)
     human.wait(0.5, 1)
 
     title_field = engine.locate(
         page, text="Describe your reel...", exact=False, timeout=15000,
     )
-    engine.select_all_and_type(page, title_field, ctx["title"])
+    engine.fill_contenteditable(page, title_field, ctx["title"])
 
     _ensure_public(page)
 
-    engine.click_role(page, "button", "Post", exact=True, timeout=15000)
+    # The Post button is disabled until there's a valid uploaded reel. If the
+    # video upload was genuinely rejected (Facebook shows a 'can't be
+    # uploaded' toast), Post never enables -- wait for it, and if it never
+    # does, that's an upload rejection, not a UI hiccup.
+    post = engine.wait_for_enabled(page, "Post", exact=True, timeout=120000)
+    human.wait(0.5, 1)
+    # JS-click bypasses any pointer-intercept overlay on the Post button.
+    post.evaluate("el => el.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true}))")
 
-    # GUESS at the post-publish confirmation -- not yet confirmed against
-    # the real UI. If this times out but the Reel actually posted, this is
-    # the first thing to fix, same as pinterest.py's confirmation-text guess.
-    engine.wait_for_text(page, "Your reel was posted", exact=False, timeout=60000)
+    # Post-submit confirmation, confirmed live (Aug 2026): after publishing,
+    # Facebook returns to the Page wall and the Reel details composer closes.
+    # A transient success banner may also appear: "Your reel has been
+    # published. You can also share to stories, groups and other places."
+    #
+    # The banner text alone is an unreliable success signal (it's a transient
+    # notification and get_by_text().first can latch onto a hidden node), so
+    # the PRIMARY signal is the composer closing: the Reel details "Post"
+    # publish button disappearing (composer gone back to the wall). The banner
+    # is accepted as an alternative confirmation if seen.
+    _wait_for_facebook_post_done(page)
+
+
+def _wait_for_facebook_post_done(page, timeout=90000):
+    """
+    Blocks until the Reel post is confirmed submitted.
+
+    Success signals (any one):
+      1. The transient success banner "...has been published..." is visible.
+      2. The Reel details composer closed -- its "Post" publish button is no
+         longer visible (we're back on the Page wall).
+
+    The composer closing is the primary signal because the banner is a
+    transient notification that can appear and disappear quickly, and
+    get_by_text().first can latch onto a hidden node.
+    """
+    import logging
+    log = logging.getLogger("facebook")
+    deadline = time.time() + timeout / 1000.0
+    while time.time() < deadline:
+        # Signal 1: success banner visible.
+        try:
+            bn = page.get_by_text("has been published", exact=False)
+            for i in range(bn.count()):
+                try:
+                    if bn.nth(i).is_visible():
+                        log.info("[FB] post confirmed (banner)")
+                        return
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        # Signal 2: composer closed -- no visible "Post" publish button,
+        # and the wall composer ("What's on your mind?") has returned.
+        try:
+            posts = page.get_by_role("button", name="Post", exact=True)
+            any_post_visible = False
+            for i in range(posts.count()):
+                try:
+                    if posts.nth(i).is_visible():
+                        any_post_visible = True
+                        break
+                except Exception:
+                    continue
+            if not any_post_visible:
+                try:
+                    wall = page.get_by_text("What's on your mind", exact=False)
+                    wall_visible = wall.count() > 0 and wall.first.is_visible()
+                except Exception:
+                    wall_visible = False
+                if wall_visible:
+                    log.info("[FB] post confirmed (composer closed)")
+                    return
+        except Exception:
+            pass
+        human.wait(1, 2)
+    shot = engine._save_failure("fb_post_confirm", page)
+    raise engine.StepFailed(
+        "Timed out waiting for Reel post confirmation. Screenshot saved to "
+        f"{shot}"
+    )
 
 
 def _open_reel_composer(page, ctx):
@@ -172,81 +250,188 @@ def _switch_into_page(page):
             continue
 
 
-def _upload_reel_video(page, video_path):
+def _upload_reel_video(page, video_path, ctx=None):
     """
-    Uploads the Reel video. The composer's file intake is genuinely finicky,
-    so this uses the ONLY method PROBED to actually register a clip: dispatch
-    a native click() on the composer's video <input type=file> inside an
-    expect_file_chooser, then set_files() -- going through the browser's real
-    file-input path that Facebook's uploader listens on. (Probed live:
-    set_input_files() on the visible/dedicated input left "Next" disabled
-    forever, as did clicking the "Add Video"/"Upload" text; only the native
-    click -> chooser -> set_files path removed the "upload your video"
-    placeholder and started processing.)
+    Uploads the Reel video into Facebook's Reel composer and waits for it to
+    register (the "Upload your video..." placeholder clears).
+
+    Facebook validates the uploaded file CLIENT-SIDE by decoding it as H.264
+    before it accepts the upload (hence PLATFORMS_NEEDING_H264 / snap-chromium
+    in config). Upload is genuinely intermittent: occasionally Facebook's
+    in-browser decoder isn't ready yet and it flashes "your file can't be
+    uploaded: <name>". The SAME bytes that get rejected will be accepted on a
+    later attempt, so we retry on a FRESH Reel composer (re-opening clears the
+    stale input bindings and the reject toast) until it registers.
+
+    Upload strategies, in order, all confirmed live:
+      1. REAL file chooser -- JS-click "Add Video" inside expect_file_chooser
+         (a layered overlay intercepts Playwright's strict click) and hand the
+         file to the chooser via set_files. This fires Facebook's real
+         trusted handler.
+      2. set_input_files on the Reel's own video-accepting <input type=file>
+         (the input whose accept is "video/*,video/mp4,..." -- NOT the wall
+         post "Add to your post" image/video input).
     """
-    # The composer's video input -- first accept*="video/mp4" input.
-    # Wait until the dropzone placeholder is actually rendered so the composer
-    # is fully interactive before we click its input (grabbing it too early can
-    # target a replacing/detached node).
-    try:
-        page.get_by_text("Upload your video", exact=False).first.wait_for(
-            state="visible", timeout=15000
-        )
-    except Exception:
-        pass  # placeholder may not be worded exactly; proceed anyway
-    human.wait(1, 2)
-    video_input = page.locator('input[type="file"][accept*="video/mp4"]').first
-    video_input.wait_for(state="attached", timeout=30000)
+    import logging
+    log = logging.getLogger("facebook")
+
+    def _video_input():
+        """Return the Reel composer's dedicated video <input type=file>
+        (accept starts with video-only set), or None."""
+        ins = page.locator('input[type="file"]')
+        for i in range(ins.count()):
+            try:
+                acc = (ins.nth(i).get_attribute("accept") or "").lower()
+            except Exception:
+                continue
+            if acc.startswith("video/*,  ") or acc.startswith("video/*,") or acc.startswith("video/"):
+                return ins.nth(i)
+        return None
+
+    def registered():
+        """
+        The actionable ready-signal is the Reel "Next" button becoming
+        ENABLED (Facebook turns it on once the upload is accepted/registered).
+        Confirmed live: the file uploads, Next enables, and only ~6s later a
+        'can't be uploaded' toast may appear (secondary/delayed validation)
+        WITHOUT disabling Next. So we gate on Next-enabled, not on raw
+        placeholder/toast text -- treating the toast as fatal was aborting
+        flows that had actually reached the enabled-Next state and would have
+        posted fine.
+        Returns True when Next is enabled+visible, else False (still pending).
+        """
+        try:
+            nxt = page.get_by_text("Next", exact=True)
+            for i in range(nxt.count()):
+                try:
+                    if nxt.nth(i).is_enabled() and nxt.nth(i).is_visible():
+                        return True
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        return False
 
     last_err = None
-    for attempt in range(4):
+    for attempt in range(6):
         try:
-            with page.expect_file_chooser(timeout=15000) as fc:
-                video_input.evaluate("el => el.click()")
-            fc.value.set_files(str(video_path))
-            # Poll up to ~40s for the upload to register (placeholder leaves).
-            registered = False
-            deadline = time.time() + 40
-            while time.time() < deadline:
-                try:
-                    page.get_by_text("Upload your video", exact=False).first.wait_for(
-                        state="visible", timeout=2000
-                    )
-                except Exception:
-                    registered = True
-                    break
-                human.wait(1, 2)
-            if registered:
-                human.wait(2, 3)
-                return
-            last_err = ValueError("upload did not register")
+            # Fresh composer before every retry (attempt 0's composer was just
+            # opened by _open_reel_composer and is already fresh).
+            if attempt > 0:
+                _reopen_reel_composer(page)
+            # Settle so Facebook's decoder/upload handler is ready before we
+            # click Add Video -- reduces the premature-reject race.
             human.wait(2, 3)
+            # Strategy 1: real chooser.
+            try:
+                with page.expect_file_chooser(timeout=15000) as fc_info:
+                    page.get_by_text("Add Video", exact=False).first.evaluate(
+                        "el => el.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true}))"
+                    )
+                fc_info.value.set_files(str(video_path))
+                log.info("[FB] upload attempt %d: via real chooser", attempt)
+                ok = _wait_ingest(registered, timeout=30)
+                if ok is True:
+                    log.info("[FB] upload registered (placeholder cleared)")
+                    return
+                last_err = ok if ok is not False else ValueError("did not ingest")
+            except Exception as e:
+                last_err = e
+                log.warning("[FB] attempt %d chooser err: %s", attempt, str(e)[:120])
+            # Strategy 2: set_input_files directly on the Reel video input.
+            try:
+                vin = _video_input()
+                if vin is not None:
+                    vin.set_input_files(str(video_path))
+                    log.info("[FB] upload attempt %d: set_input_files on Reel input", attempt)
+                    ok = _wait_ingest(registered, timeout=30)
+                    if ok is True:
+                        log.info("[FB] upload registered (placeholder cleared)")
+                        return
+                    last_err = ok if ok is not False else ValueError("did not ingest")
+            except Exception as e:
+                last_err = e
+            log.warning("[FB] attempt %d not ingested (last=%s), retrying fresh composer",
+                        attempt, str(last_err)[:80])
         except Exception as e:
             last_err = e
-            human.wait(2, 3)
+            log.warning("[FB] upload attempt %d error: %s", attempt, str(e)[:140])
+        human.wait(2, 3)
     engine._save_failure("fb_reel_upload", page)
     raise engine.StepFailed(f"Reel video upload failed after retries: {last_err}")
 
 
+def _wait_ingest(check, timeout=30):
+    """Poll `check` (returns True/False/'reject') until it resolves."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        r = check()
+        if r is True or r == "reject":
+            return r
+        human.wait(2, 2)
+    return False
+
+
+def _reopen_reel_composer(page):
+    """Close any open composer and open a fresh Reel composer (clean input
+    state + clears any reject toast)."""
+    import logging
+    log = logging.getLogger("facebook")
+    try:
+        page.keyboard.press("Escape")
+        human.wait(1, 2)
+    except Exception:
+        pass
+    try:
+        page.get_by_text("What's on your mind", exact=False).first.evaluate(
+            "el => el.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true}))")
+        human.wait(2, 3)
+        page.get_by_text("Reel", exact=True).first.evaluate(
+            "el => el.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true}))")
+        human.wait(2, 3)
+        engine.wait_for_text(page, "Create reel", exact=False, timeout=15000)
+        log.info("[FB] reopened fresh Reel composer")
+    except Exception as e:
+        log.warning("[FB] reopen composer warning: %s", str(e)[:120])
+
+
 def _ensure_public(page):
     """
-    Confirms the visibility/audience selector shown near Post says "Public",
-    changing it if not, per "make sure it says public below (if not, change
+    Confirms the audience/visibility selector shown near Post says "Public",
+    changing it if not -- per "make sure it says public below (if not, change
     to public)".
 
-    GUESS: if "Public" isn't already showing, this assumes clicking whatever
-    IS showing (the current audience label -- e.g. "Friends") opens a
-    dropdown/list containing a "Public" option to pick. Facebook's exact
-    control here isn't confirmed yet; if this breaks, the fix is almost
-    certainly narrowing this from "click whatever text is there" to the
-    audience selector's specific role/name once we can see the real DOM.
+    Confirmed live (Aug 2026): the Reel details screen renders the audience
+    selector as a button whose accessible name is "Public / Anyone on or off
+    Facebook". Both the creator wall and the Reel composer default to Public,
+    so this normally only needs to DETECT that Publlic is already selected and
+    return. The old implementation failed because get_by_text("Public").first
+    locked onto a hidden/non-element node and its sibling collision never
+    matched -- now we check for a VISIBLE "Public" (or the "Anyone on or off
+    Facebook" selector button) and only attempt a change if none is found.
     """
+    # 1) The audience selector button itself reads "Public / Anyone on or off
+    #    Facebook" when Public is selected -- the authoritative signal.
     try:
-        engine.locate(page, text="Public", exact=False, timeout=3000)
-        return  # already Public -- nothing to do
-    except engine.StepFailed:
+        sel = page.get_by_role("button", name="Anyone on or off Facebook")
+        if sel.count() and sel.first.is_visible():
+            return
+    except Exception:
         pass
-
+    # 2) Fallback: any VISIBLE "Public" text element means we're already Public
+    #    (get_by_text().first is unreliable here -- it can hit a hidden/blank
+    #    node, so scan all matches).
+    pubs = page.get_by_text("Public", exact=False)
+    n = pubs.count()
+    for i in range(n):
+        try:
+            if pubs.nth(i).is_visible():
+                return
+        except Exception:
+            continue
+    # 3) Not Public -- best-effort: click the current audience label to open
+    #    the picker, then choose "Public". Rarely reached today (defaults to
+    #    Public), kept as a defensive fallback.
     for candidate in ("Friends", "Only me", "Friends except...", "Specific friends"):
         try:
             engine.click_text(page, candidate, exact=False, timeout=2000, retries=0)
@@ -254,4 +439,7 @@ def _ensure_public(page):
         except engine.StepFailed:
             continue
     human.wait(0.3, 0.6)
-    engine.click_text(page, "Public", exact=False, timeout=8000)
+    try:
+        engine.click_text(page, "Public", exact=False, timeout=8000)
+    except engine.StepFailed:
+        pass

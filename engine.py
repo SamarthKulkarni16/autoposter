@@ -16,6 +16,7 @@ page DOM, not the OS-level screenshot.
 
 import os
 import time
+import random
 import atexit
 import config
 import human_actions as human
@@ -305,6 +306,35 @@ def select_all_and_type(page, locator, text, timeout=30000):
     human.type_text(locator, text)
 
 
+def fill_contenteditable(page, locator, text, timeout=30000):
+    """
+    Fill a rich-text/contenteditable field (e.g. Facebook's Reel title, a
+    Lexical editor) that Playwright's strict click can't reach because an
+    inner <p> subtree intercepts pointer events ("subtree intercepts pointer
+    events").
+
+    Approach: focus the element via JS (.focus()), then select-all + delete
+    via the keyboard and type the new text at the focused caret. Works
+    regardless of the pointer-intercept, because we never ask Playwright to
+    action-check/click the element -- we just focus it and type.
+    """
+    try:
+        locator.evaluate("el => { el.focus && el.focus(); return true; }")
+    except Exception:
+        try:
+            page.evaluate("() => document.activeElement && document.activeElement.blur()")
+            locator.click(timeout=timeout)
+        except Exception:
+            pass
+    human.wait(0.2, 0.4)
+    page.keyboard.press("Control+A")
+    human.wait(0.1, 0.2)
+    page.keyboard.press("Backspace")
+    human.wait(0.2, 0.4)
+    page.keyboard.type(text, delay=random.randint(25, 50))
+    human.wait(0.2, 0.4)
+
+
 def upload_file(page, trigger_locator, file_path):
     """
     Uploads a file by clicking whatever triggers the native picker and
@@ -380,13 +410,27 @@ def wait_for_enabled(page, label_text, exact=True, timeout=240000):
     own processing of an uploaded file (Pinterest's title field, Facebook
     Reel's "Next" button both do this) -- wait it out rather than clicking
     early and falling into a timeout loop.
+
+    Facebook's Reel composer can have MULTIPLE elements whose text equals
+    label_text in the DOM at once -- e.g. a stale/disabled "Next" in a
+    background composer plus the live enabled one in the foreground Reel
+    composer. Relying on `.first` (which Playwright returns in DOM order) can
+    lock onto the disabled one forever. So we treat "enabled" as satisfied
+    when ANY matching element is enabled AND visible; that's the actionable
+    control. Returns a locator for the first enabled+visible match.
     """
     deadline = time.time() + timeout / 1000.0
     while time.time() < deadline:
         try:
-            loc = page.get_by_text(label_text, exact=exact).first
-            if loc.is_enabled():
-                return loc
+            locs = page.get_by_text(label_text, exact=exact)
+            n = locs.count()
+            for i in range(n):
+                loc = locs.nth(i)
+                try:
+                    if loc.is_enabled() and loc.is_visible():
+                        return loc
+                except Exception:
+                    continue
         except Exception:
             pass
         human.wait(1, 2)
