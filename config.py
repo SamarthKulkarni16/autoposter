@@ -2,19 +2,34 @@
 config.py
 """
 
+import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).parent
 OUTBOX_DIR = BASE_DIR / "outbox"
-PROFILES_DIR = BASE_DIR / "profiles"
-PROFILES_DIR.mkdir(exist_ok=True)
 
-# Playwright's persistent-context Chromium (its own bundled build --
-# real Chrome has no official ARM64 Linux build, which this VM is) reads/
-# writes a normal Chromium user-data-dir, so accounts logged in once under
-# profiles/<name>/ stay logged in on every future run. Chromium, not
-# Firefox: Google's own sign-in flow blocks Playwright's patched Firefox
-# build far more often (see engine.open_account docstring).
+# --- Real Chrome, real VM profiles (replaces the old Playwright-bundled-
+# Chromium-per-(platform,lang) scheme) --------------------------------------
+# All the accounts in ACCOUNTS below are already logged in on the VM's real
+# Chrome, migrated from the Windows machine (see memory: Chrome profile
+# migration). Instead of Playwright driving its own isolated Chromium build
+# through a separate profiles/<platform>_<lang>/ dir per account (which
+# needed its own from-scratch manual login/cookie setup, and -- for
+# Pinterest/Facebook -- a whole separate H.264-capable snap-chromium
+# workaround since Playwright's bundled Chromium has no proprietary codec
+# support), Playwright now drives the SAME real "google-chrome" binary and
+# user-data-dir the desktop session uses, selecting the right account via
+# Chrome's own --profile-directory flag. This means:
+#   - one login per Google/email account total, not one per (platform, lang)
+#   - real Chrome decodes H.264 natively, so the Pinterest/Facebook
+#     client-side-decode problem (see git history) no longer applies -- no
+#     snap chromium needed for any platform
+# CHROME_USER_DATA_DIR / CHROME_EXECUTABLE below mirror the exact values
+# oracle-vm-setup's keepalive.sh already uses successfully against these
+# same profiles.
+CHROME_USER_DATA_DIR = os.path.expanduser("~/.config/google-chrome")
+CHROME_EXECUTABLE = "google-chrome-stable"
+
 HEADLESS = False          # Studio's upload UI behaves more reliably headed
 LOAD_WAIT_SEC = 3         # short settle pause after navigation, before interacting
 
@@ -36,114 +51,81 @@ LANGS = ["hi", "ar", "pt", "es"]
 # exists and has been tested.
 ENABLED_PLATFORMS = ["facebook"]
 
-# H.264 decode support.
-#
-# Playwright's bundled Chromium on this ARM64 Linux box is compiled WITHOUT
-# proprietary codecs: `MediaSource.isTypeSupported('video/mp4; codecs="avc1..."')`
-# returns False for every H.264 profile (confirmed live). That matters because
-# some platforms validate the uploaded video CLIENT-SIDE by decoding it in the
-# browser's <video>/MSE pipeline before enabling the rest of the composer:
-#   - Pinterest rejects any H.264 MP4 with "This video isn't encoded in H.264 or
-#     H.265" and never enables the Title field (the original failure behind the
-#     endless "title disabled" loop)
-#   - Facebook's Reel uploader similarly needs the browser to ingest the video
-# YouTube is unaffected: it uploads server-side and doesn't require client-side
-# H.264 decoding, so it keeps working on Playwright's bundled Chromium.
-#
-# For platforms that DO need client-side video decoding, we launch a real
-# H.264-capable browser instead of Playwright's bundled build. Canonical's
-# `chromium` SNAP ships proprietary codecs (arm64 included) and is drivable by
-# Playwright via executable_path. It reads/writes the same Chromium user-data-dir
-# format, so the existing logged-in profiles carry over unchanged.
-#
-# Set SNAP_CHROMIUM_EXECUTABLE to the snap launcher (or any H.264-capable
-# chrome/chromium binary). PLATFORMS_NEEDING_H264 lists which platforms must use
-# it (any platform that client-side decodes the uploaded video).
-SNAP_CHROMIUM_EXECUTABLE = "/snap/bin/chromium"
-PLATFORMS_NEEDING_H264 = {"pinterest", "facebook"}
-
 # --- Accounts -------------------------------------------------------------
-# One entry per (platform, lang). "profile" = folder name under profiles/,
-# created automatically the first time you run setup_profile.py for it.
-# "profile_path" = an absolute path to an existing Chromium user-data-dir to reuse
-# instead (e.g. one already logged in outside this tool). "url" = where the
+# One entry per (platform, lang). "chrome_profile" = the real Chrome profile
+# directory name on the VM (e.g. "Profile 23") that's already logged into
+# this account -- confirmed via a ground-truth scan of
+# ~/.config/google-chrome/*/Preferences (see memory). "url" = where the
 # account should land, logged in, ready to post. "board" (optional) = the
 # Pinterest board name to select for this lang, when several langs share one
-# logged-in "profile" (see "pinterest" below) instead of each having its own.
+# logged-in chrome_profile (see "pinterest" below) instead of each having
+# its own. Several (platform, lang) entries can point at the same
+# chrome_profile when they're actually the same Google account (e.g.
+# pinterest's hi/ar/pt/es all share Profile 23) -- that's expected, not a
+# collision, since each job still gets its own dedicated browser window
+# and posts are processed sequentially, never in parallel, by main.py.
 #
 # No "en" entries, for youtube or any platform added below -- English is
 # handled outside this automation entirely, across every social platform.
 ACCOUNTS = {
     "youtube": {
-        # NOTE: previously used "profile_path" to reuse the VM's real Firefox
-        # profile directly, but Playwright bundles its own Firefox build,
-        # and that real profile had been touched by a newer system Firefox
-        # than Playwright's -- Firefox refuses to open a profile stamped by
-        # a newer version ("This profile was last used with a newer version
-        # of this application. Please create a new profile."). We also then
-        # hit Google actively blocking Playwright's Firefox at sign-in
-        # ("This browser or app may not be secure"), so this account now
-        # uses a fresh Chromium profile like every other account.
-        "hi": {"profile": "youtube_hi", "email": "samarth.youtube1@gmail.com", "url": "https://studio.youtube.com"},
-        "ar": {"profile": "youtube_ar", "email": "samarthkulkarni16s@gmail.com", "url": "https://studio.youtube.com"},
-        "pt": {"profile": "youtube_pt", "email": "samarthkulkarni.pt@gmail.com", "url": "https://studio.youtube.com"},
-        "es": {"profile": "youtube_es", "email": "samarthkulkarni.es@gmail.com", "url": "https://studio.youtube.com"},
+        "hi": {"chrome_profile": "Profile 23", "email": "samarth.youtube1@gmail.com", "url": "https://studio.youtube.com"},
+        "ar": {"chrome_profile": "Profile 12", "email": "samarthkulkarni16s@gmail.com", "url": "https://studio.youtube.com"},
+        "pt": {"chrome_profile": "Profile 28", "email": "samarthkulkarni.pt@gmail.com", "url": "https://studio.youtube.com"},
+        "es": {"chrome_profile": "Profile 27", "email": "samarthkulkarni.es@gmail.com", "url": "https://studio.youtube.com"},
     },
-    # Pinterest: unlike YouTube, hi/ar/pt/es are NOT four separate logins --
-    # they're four boards ("Hindi"/"Arabic"/"Portuguese"/"Spanish") under one
-    # shared account (samarth.youtube1@gmail.com), so every lang below points
-    # at the SAME "profile" folder (one login covers all four -- logging into
-    # "pinterest"/"hi" via setup_profile.py/setup_all_profiles.py also logs in
-    # "ar", "pt", and "es", since it's literally the same Chromium profile
-    # dir/session). Only "board" differs per lang; platforms/pinterest.py
-    # (not written yet) is expected to read ctx["board"] and pick that board
-    # when creating each pin. The English Pinterest account
+    # Pinterest: hi/ar/pt/es are NOT four separate logins -- they're four
+    # boards ("Hindi"/"Arabic"/"Portuguese"/"Spanish") under one shared
+    # account (samarth.youtube1@gmail.com, chrome_profile "Profile 23"), so
+    # every lang below points at the SAME chrome_profile. Only "board"
+    # differs per lang; platforms/pinterest.py reads ctx["board"] and picks
+    # that board when creating each pin. The English Pinterest account
     # (samarth1616s@gmail.com) is a fully separate account and is
     # intentionally NOT configured here at all.
     "pinterest": {
-        "hi": {"profile": "pinterest_shared", "board": "Hindi", "email": "samarth.youtube1@gmail.com", "url": "https://www.pinterest.com/pin-creation-tool/"},
-        "ar": {"profile": "pinterest_shared", "board": "Arabic", "email": "samarth.youtube1@gmail.com", "url": "https://www.pinterest.com/pin-creation-tool/"},
-        "pt": {"profile": "pinterest_shared", "board": "Portuguese", "email": "samarth.youtube1@gmail.com", "url": "https://www.pinterest.com/pin-creation-tool/"},
-        "es": {"profile": "pinterest_shared", "board": "Spanish", "email": "samarth.youtube1@gmail.com", "url": "https://www.pinterest.com/pin-creation-tool/"},
+        "hi": {"chrome_profile": "Profile 23", "board": "Hindi", "email": "samarth.youtube1@gmail.com", "url": "https://www.pinterest.com/pin-creation-tool/"},
+        "ar": {"chrome_profile": "Profile 23", "board": "Arabic", "email": "samarth.youtube1@gmail.com", "url": "https://www.pinterest.com/pin-creation-tool/"},
+        "pt": {"chrome_profile": "Profile 23", "board": "Portuguese", "email": "samarth.youtube1@gmail.com", "url": "https://www.pinterest.com/pin-creation-tool/"},
+        "es": {"chrome_profile": "Profile 23", "board": "Spanish", "email": "samarth.youtube1@gmail.com", "url": "https://www.pinterest.com/pin-creation-tool/"},
     },
     # Facebook: same shared-login idea as Pinterest above, but the four
     # langs are four separate PAGES (not a dropdown choice on one shared
     # URL) -- "Samarth Kulkarni HI"/"Arabic"/"Portuguese"/"ES" -- all
-    # administered by the one shared personal account
-    # (samarth.youtube1@gmail.com). So "profile" is still the SAME shared
-    # folder for all four (one login covers all four Pages), but unlike
-    # Pinterest, "url" also differs per lang -- each Page has its own
-    # distinct URL, and posting as that Page means actually navigating
-    # there, not selecting an option within one shared composer. "page" is
-    # the Page's display name, kept here for logging/sanity-checks in
-    # platforms/facebook.py (not written yet) rather than for navigation.
+    # administered by the one shared personal account (samarth.youtube1@gmail.com,
+    # "Profile 23"). So chrome_profile is still the SAME for all four (one
+    # login covers all four Pages), but unlike Pinterest, "url" also differs
+    # per lang -- each Page has its own distinct URL, and posting as that
+    # Page means actually navigating there, not selecting an option within
+    # one shared composer. "page" is the Page's display name, kept here for
+    # logging/sanity-checks in platforms/facebook.py rather than for
+    # navigation.
     "facebook": {
-        "hi": {"profile": "facebook_shared", "page": "Samarth Kulkarni HI", "email": "samarth.youtube1@gmail.com", "url": "https://www.facebook.com/profile.php?id=61589758439087"},
-        "ar": {"profile": "facebook_shared", "page": "Samarth Kulkarni Arabic", "email": "samarth.youtube1@gmail.com", "url": "https://www.facebook.com/profile.php?id=61589615735525"},
-        "pt": {"profile": "facebook_shared", "page": "Samarth Kulkarni Portuguese", "email": "samarth.youtube1@gmail.com", "url": "https://www.facebook.com/profile.php?id=61589630883062"},
-        "es": {"profile": "facebook_shared", "page": "Samarth Kulkarni ES", "email": "samarth.youtube1@gmail.com", "url": "https://www.facebook.com/profile.php?id=61589796354178"},
+        "hi": {"chrome_profile": "Profile 23", "page": "Samarth Kulkarni HI", "email": "samarth.youtube1@gmail.com", "url": "https://www.facebook.com/profile.php?id=61589758439087"},
+        "ar": {"chrome_profile": "Profile 23", "page": "Samarth Kulkarni Arabic", "email": "samarth.youtube1@gmail.com", "url": "https://www.facebook.com/profile.php?id=61589615735525"},
+        "pt": {"chrome_profile": "Profile 23", "page": "Samarth Kulkarni Portuguese", "email": "samarth.youtube1@gmail.com", "url": "https://www.facebook.com/profile.php?id=61589630883062"},
+        "es": {"chrome_profile": "Profile 23", "page": "Samarth Kulkarni ES", "email": "samarth.youtube1@gmail.com", "url": "https://www.facebook.com/profile.php?id=61589796354178"},
     },
     # Instagram: back to YouTube's pattern, not Pinterest/Facebook's -- four
     # fully separate accounts, one per lang, each its own login (own email,
-    # own handle), so each gets its own "profile" folder just like youtube
-    # above. "handle" is just for logging/sanity-checks (e.g. confirming the
-    # right account ended up logged in), not used for navigation.
+    # own handle, own chrome_profile), just like youtube above. "handle" is
+    # just for logging/sanity-checks (e.g. confirming the right account
+    # ended up logged in), not used for navigation.
     "instagram": {
-        "hi": {"profile": "instagram_hi", "handle": "@samarthkulkarni_hi", "email": "samarth.youtube1@gmail.com", "url": "https://www.instagram.com/"},
-        "ar": {"profile": "instagram_ar", "handle": "@samarthkulkarni.ar", "email": "samarthkulkarni.es@gmail.com", "url": "https://www.instagram.com/"},
-        "pt": {"profile": "instagram_pt", "handle": "@samarthkulkarni.pt", "email": "samarthkulkarni.pt@gmail.com", "url": "https://www.instagram.com/"},
-        "es": {"profile": "instagram_es", "handle": "@samarthkulkarni_es", "email": "samarthkulkarni16s@gmail.com", "url": "https://www.instagram.com/"},
+        "hi": {"chrome_profile": "Profile 23", "handle": "@samarthkulkarni_hi", "email": "samarth.youtube1@gmail.com", "url": "https://www.instagram.com/"},
+        "ar": {"chrome_profile": "Profile 27", "handle": "@samarthkulkarni.ar", "email": "samarthkulkarni.es@gmail.com", "url": "https://www.instagram.com/"},
+        "pt": {"chrome_profile": "Profile 28", "handle": "@samarthkulkarni.pt", "email": "samarthkulkarni.pt@gmail.com", "url": "https://www.instagram.com/"},
+        "es": {"chrome_profile": "Profile 12", "handle": "@samarthkulkarni_es", "email": "samarthkulkarni16s@gmail.com", "url": "https://www.instagram.com/"},
     },
     # X (Twitter): same pattern as Instagram, not Pinterest/Facebook -- four
-    # fully separate accounts/logins, one per lang, each its own "profile"
-    # folder. Note the emails here overlap with OTHER platforms' emails
-    # above (e.g. samarthkulkarni.es@gmail.com is Instagram/Arabic's login
-    # but X/Hindi's login) -- that's fine, each (platform, lang) pair still
-    # gets its own separate Chromium profile dir, so there's no collision.
+    # fully separate accounts/logins, one per lang, each its own
+    # chrome_profile. Note the emails/profiles here overlap with OTHER
+    # platforms' (e.g. Profile 27 = samarthkulkarni.es@gmail.com is both
+    # Instagram/Arabic's login AND X/Hindi's login) -- that's fine and
+    # expected, not a collision (see the ACCOUNTS docstring above).
     "x": {
-        "hi": {"profile": "x_hi", "handle": "@SamarthK_hi", "email": "samarthkulkarni.es@gmail.com", "url": "https://x.com/"},
-        "ar": {"profile": "x_ar", "handle": "@SamarthK_Ar", "email": "samarthkulkarni16s@gmail.com", "url": "https://x.com/"},
-        "pt": {"profile": "x_pt", "handle": "@SamarthK_pt", "email": "samarthkulkarni.pt@gmail.com", "url": "https://x.com/"},
-        "es": {"profile": "x_es", "handle": "@SamarthkEs1", "email": "samarth.youtube1@gmail.com", "url": "https://x.com/"},
+        "hi": {"chrome_profile": "Profile 27", "handle": "@SamarthK_hi", "email": "samarthkulkarni.es@gmail.com", "url": "https://x.com/"},
+        "ar": {"chrome_profile": "Profile 12", "handle": "@SamarthK_Ar", "email": "samarthkulkarni16s@gmail.com", "url": "https://x.com/"},
+        "pt": {"chrome_profile": "Profile 28", "handle": "@SamarthK_pt", "email": "samarthkulkarni.pt@gmail.com", "url": "https://x.com/"},
+        "es": {"chrome_profile": "Profile 23", "handle": "@SamarthkEs1", "email": "samarth.youtube1@gmail.com", "url": "https://x.com/"},
     },
 }
