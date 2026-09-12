@@ -256,8 +256,9 @@ def _upload_reel_video(page, video_path, ctx=None):
     register (the "Upload your video..." placeholder clears).
 
     Facebook validates the uploaded file CLIENT-SIDE by decoding it as H.264
-    before it accepts the upload (hence PLATFORMS_NEEDING_H264 / snap-chromium
-    in config). Upload is genuinely intermittent: occasionally Facebook's
+    before it accepts the upload -- real Chrome (see engine.open_account)
+    decodes H.264 natively so this itself isn't the blocker anymore, but
+    upload is genuinely intermittent regardless: occasionally Facebook's
     in-browser decoder isn't ready yet and it flashes "your file can't be
     uploaded: <name>". The SAME bytes that get rejected will be accepted on a
     later attempt, so we retry on a FRESH Reel composer (re-opening clears the

@@ -64,40 +64,78 @@ def _shutdown():
         _pw = None
 
 
+def _find_real_session_env():
+    """
+    These Chrome profiles' cookies/auth tokens are encrypted via the VM's
+    gnome-keyring, which is only unlockable from within the real persistent
+    RDP desktop session -- a detached/headless launch can't decrypt them and
+    silently loads logged-out pages (this bit oracle-vm-setup's keepalive
+    script before it was fixed the same way). Discover the real session's
+    DISPLAY + DBUS_SESSION_BUS_ADDRESS dynamically via the running
+    gnome-keyring-daemon's /proc/<pid>/environ, rather than hardcoding them,
+    since a VM/session restart changes these values. Returns (display, dbus)
+    or (None, None) if no live session is found.
+    """
+    import subprocess
+    try:
+        pids = subprocess.check_output(["pgrep", "-f", "gnome-keyring-daemon"]).decode().split()
+    except Exception:
+        pids = []
+    for pid in pids:
+        try:
+            with open(f"/proc/{pid}/environ", "rb") as f:
+                raw = f.read().split(b"\0")
+            env = dict(item.split(b"=", 1) for item in raw if b"=" in item)
+            display = env.get(b"DISPLAY", b"").decode() or None
+            dbus_addr = env.get(b"DBUS_SESSION_BUS_ADDRESS", b"").decode() or None
+            if display and dbus_addr:
+                return display, dbus_addr
+        except Exception:
+            continue
+    return None, None
+
+
 def open_account(platform, lang):
     """
-    Launches a persistent Chromium context (Playwright's own bundled
-    Chromium — NOT the "chrome" channel; real Google Chrome has no official
-    ARM64 Linux build, and this VM is an Oracle Ampere/ARM64 instance, so
-    channel="chrome" hard-fails there with "Failed to install chrome") using
-    the dedicated profile for this (platform, lang) account, already logged
-    in, pointed at its start URL. Returns the Page — pass it to
-    close_account() when done.
+    Launches a persistent context using the VM's REAL Chrome binary and its
+    real user-data-dir (config.CHROME_USER_DATA_DIR), selecting this
+    (platform, lang) account's already-logged-in profile via Chrome's own
+    --profile-directory flag (config.ACCOUNTS[...]["chrome_profile"], e.g.
+    "Profile 23"). Returns the Page — pass it to close_account() when done.
 
-    Chromium, not Firefox: Google's sign-in flow actively fingerprints and
-    blocks browsers it detects as automated/embedded ("This browser or app
-    may not be secure"), and that block triggers far more reliably against
-    Playwright's patched Firefox build than against Chromium running headed
-    with --disable-blink-features=AutomationControlled.
+    This replaced an earlier design that drove Playwright's own bundled
+    Chromium against a separate profiles/<platform>_<lang>/ dir per account,
+    each needing its own from-scratch manual login. Real Chrome fixes two
+    problems at once: one login per Google account total instead of one per
+    (platform, lang), and native H.264 decoding (Playwright's bundled
+    Chromium had none, which broke Pinterest/Facebook's client-side video
+    validation -- see git history for the old SNAP_CHROMIUM_EXECUTABLE
+    workaround this removed).
 
-    A persistent context IS the profile directory (cookies, local storage,
-    everything), so logins made once via setup_profile.py stick around.
+    Must run against the VM's real desktop session (see
+    _find_real_session_env docstring) -- raises StepFailed immediately if no
+    live session is found, rather than launching into a logged-out browser.
     """
     account = config.ACCOUNTS[platform][lang]
+    chrome_profile = account.get("chrome_profile")
+    if not chrome_profile:
+        raise StepFailed(
+            f"No chrome_profile configured for {platform}/{lang} in config.ACCOUNTS."
+        )
 
-    if "profile_path" in account:
-        user_data_dir = account["profile_path"]
-    else:
-        user_data_dir = str(config.PROFILES_DIR / account["profile"])
-        if not Path(user_data_dir).exists():
-            raise StepFailed(
-                f"No saved login for {platform}/{lang}. "
-                f"Run: python3 setup_profile.py {platform} {lang}"
-            )
+    display, dbus_addr = _find_real_session_env()
+    if not display or not dbus_addr:
+        raise StepFailed(
+            "Could not find an active real desktop session (DISPLAY/DBUS via "
+            "gnome-keyring-daemon). The VM's RDP session must be open and "
+            "logged in for Chrome to decrypt this profile's saved login."
+        )
+    os.environ["DISPLAY"] = display
+    os.environ["DBUS_SESSION_BUS_ADDRESS"] = dbus_addr
 
     # In headed mode, let the window take over the full screen instead of a
     # small fixed-size viewport (which showed up on RDP as a tiny "restored
-    # down" window) -- viewport=None + --start-maximized makes Chromium size
+    # down" window) -- viewport=None + --start-maximized makes Chrome size
     # itself to the actual screen. In headless mode there's no visible window
     # to maximize, so keep a fixed viewport as before.
     if config.HEADLESS:
@@ -105,29 +143,17 @@ def open_account(platform, lang):
     else:
         launch_kwargs = dict(viewport=None)
 
-    # Some platforms (Pinterest, Facebook) validate the uploaded video by
-    # decoding it CLIENT-SIDE before enabling the composer. Playwright's bundled
-    # Chromium on this ARM64 box has no H.264 decoder, so those platforms reject
-    # every H.264 MP4 ("not encoded in H.264" / title stays disabled forever).
-    # For those platforms, launch a real H.264-capable browser instead (the
-    # Canonical chromium snap, or any browser passed in SNAP_CHROMIUM_EXECUTABLE).
-    # It's still Chromium-family, so the same user-data-dir + logins work.
-    executable_path = None
-    if platform in getattr(config, "PLATFORMS_NEEDING_H264", set()) and not config.HEADLESS:
-        executable_path = getattr(config, "SNAP_CHROMIUM_EXECUTABLE", None)
-        if not executable_path or not os.path.exists(executable_path):
-            raise StepFailed(
-                f"Platform '{platform}' needs an H.264-capable browser, but "
-                f"config.SNAP_CHROMIUM_EXECUTABLE ({executable_path!r}) is not a "
-                f"valid path. Install the chromium snap (sudo snap install chromium) "
-                f"or point SNAP_CHROMIUM_EXECUTABLE at an H.264-capable chrome."
-            )
-
     context = _playwright().chromium.launch_persistent_context(
-        user_data_dir,
+        config.CHROME_USER_DATA_DIR,
         headless=config.HEADLESS,
-        executable_path=executable_path,
-        args=["--disable-blink-features=AutomationControlled", "--start-maximized"],
+        executable_path=config.CHROME_EXECUTABLE,
+        args=[
+            f"--profile-directory={chrome_profile}",
+            "--disable-blink-features=AutomationControlled",
+            "--start-maximized",
+            "--no-first-run",
+            "--no-default-browser-check",
+        ],
         **launch_kwargs,
     )
     page = context.pages[0] if context.pages else context.new_page()

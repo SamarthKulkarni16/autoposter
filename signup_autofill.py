@@ -157,4 +157,15 @@ def main():
 
 
 if __name__ == "__main__":
+    print(
+        "signup_autofill.py is OBSOLETE: config.ACCOUNTS now points every "
+        "(platform, lang) at a real Chrome profile on the VM (chrome_profile, "
+        "e.g. \"Profile 23\") that's already logged in via the desktop Chrome "
+        "migration -- there's no separate per-(platform,lang) login flow to "
+        "autofill an email into anymore. If an account actually needs "
+        "re-logging-in, do it by hand in that Chrome profile on the VM's real "
+        "desktop session (RDP), not through this script."
+    )
+    sys.exit(1)
+    # --- original body below, unreachable, kept for reference only ---
     main()
