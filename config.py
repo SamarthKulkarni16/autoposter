@@ -28,7 +28,21 @@ OUTBOX_DIR = BASE_DIR / "outbox"
 # oracle-vm-setup's keepalive.sh already uses successfully against these
 # same profiles.
 CHROME_USER_DATA_DIR = os.path.expanduser("~/.config/google-chrome")
-CHROME_EXECUTABLE = "google-chrome-stable"
+import shutil
+
+# Playwright's executable_path is passed straight to the OS process launcher,
+# not through a shell -- it does NOT do a $PATH lookup the way typing
+# "google-chrome-stable" in bash does (confirmed live: "Failed to launch
+# chromium because executable doesn't exist at google-chrome-stable"), so
+# this needs an actual resolved path. shutil.which() replicates PATH lookup
+# in Python; if that comes up empty (e.g. a stripped-down SSH non-interactive
+# PATH), fall back to the standard install path for Google's own .deb
+# package on Debian/Ubuntu, which is what this VM uses.
+CHROME_EXECUTABLE = (
+    shutil.which("google-chrome-stable")
+    or shutil.which("google-chrome")
+    or "/usr/bin/google-chrome-stable"
+)
 
 HEADLESS = False          # Studio's upload UI behaves more reliably headed
 LOAD_WAIT_SEC = 3         # short settle pause after navigation, before interacting
