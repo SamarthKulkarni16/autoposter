@@ -55,14 +55,13 @@ def _playwright():
 
 
 def _shutdown():
-    global _pw, _cdp_browser
+    global _pw
     if _pw is not None:
         try:
             _pw.stop()
         except Exception:
             pass
         _pw = None
-    _cdp_browser = None
 
 
 def _find_real_session_env():
@@ -96,85 +95,23 @@ def _find_real_session_env():
     return None, None
 
 
-_cdp_browser = None  # one shared Playwright CDP connection, reused across jobs
-
-
-def _cdp():
-    """
-    Connects to the VM's one long-running real Chrome process over CDP
-    (config.CHROME_CDP_URL) -- reused across jobs rather than reconnecting
-    each time, since a fresh connect_over_cdp() call returns fresh Python
-    Page-wrapper objects even for the same underlying browser tab, which
-    would break the identity comparison _wait_for_new_page() relies on to
-    tell "the window we just opened" apart from every other window already
-    open in the shared process.
-    """
-    global _cdp_browser
-    if _cdp_browser is None or not _cdp_browser.is_connected():
-        _cdp_browser = _playwright().chromium.connect_over_cdp(config.CHROME_CDP_URL)
-    return _cdp_browser
-
-
-def _all_pages(browser):
-    pages = []
-    for ctx in browser.contexts:
-        pages.extend(ctx.pages)
-    return pages
-
-
-def _hostname(url):
-    from urllib.parse import urlparse
-    try:
-        return urlparse(url).netloc
-    except Exception:
-        return ""
-
-
-def _wait_for_new_page(browser, before_ids, target_url, timeout_s=20):
-    """
-    Polls the shared browser's pages for one that (a) wasn't present in
-    before_ids and (b) has landed on target_url's hostname -- i.e. the
-    window our CLI hand-off (see open_account) just asked the running Chrome
-    process to open. Matching by hostname rather than exact URL since sites
-    commonly redirect (e.g. x.com -> x.com/home) before settling.
-    """
-    deadline = time.time() + timeout_s
-    target_host = _hostname(target_url)
-    while time.time() < deadline:
-        for pg in _all_pages(browser):
-            if id(pg) not in before_ids and _hostname(pg.url) == target_host:
-                return pg
-        time.sleep(0.5)
-    return None
-
-
 def open_account(platform, lang):
     """
-    Opens this (platform, lang) account's already-logged-in window in the
-    VM's one long-running real Chrome process, and returns its Page --
-    pass it to close_account() when done.
-
-    Real Chrome allows only ONE running process per user-data-dir (learned
-    live: launch_persistent_context() collided with windows already open in
-    an existing process -- "Target page, context or browser has been
-    closed"/SingletonLock errors). So instead of launching a fresh process
-    per job, this:
-      1. asks the ALREADY-RUNNING Chrome process (started once with
-         --remote-debugging-port, see oracle-vm-setup's
-         restart-chrome-debug-port.yml) to open a new window for this
-         account's chrome_profile + URL, via the same CLI hand-off mechanism
-         keepalive.sh already relies on (invoking `google-chrome-stable
-         --profile-directory=X URL` against a running instance opens a new
-         window in THAT process rather than starting a second one)
-      2. attaches to that same process over CDP (config.CHROME_CDP_URL) and
-         finds the specific new window/page that hand-off just opened
+    Launches a persistent context using real Chrome (config.CHROME_EXECUTABLE)
+    against the dedicated automation-only profile copy
+    (config.CHROME_USER_DATA_DIR = ~/.config/chrome-automation, see
+    config.py's header comment for why it's a separate copy rather than the
+    real desktop directory), selecting this (platform, lang) account's
+    already-logged-in profile via Chrome's own --profile-directory flag
+    (config.ACCOUNTS[...]["chrome_profile"], e.g. "Profile 23"). Returns the
+    Page — pass it to close_account() when done, which frees the process for
+    the next job (jobs run sequentially, never concurrently, so this is
+    safe -- see config.py's "one process per user-data-dir" note).
 
     Must run against the VM's real desktop session (see
     _find_real_session_env docstring) -- raises StepFailed immediately if no
     live session is found, rather than launching into a logged-out browser.
     """
-    import subprocess
-
     account = config.ACCOUNTS[platform][lang]
     chrome_profile = account.get("chrome_profile")
     if not chrome_profile:
@@ -192,31 +129,31 @@ def open_account(platform, lang):
     os.environ["DISPLAY"] = display
     os.environ["DBUS_SESSION_BUS_ADDRESS"] = dbus_addr
 
-    browser = _cdp()
-    before_ids = {id(pg) for pg in _all_pages(browser)}
+    # In headed mode, let the window take over the full screen instead of a
+    # small fixed-size viewport (which showed up on RDP as a tiny "restored
+    # down" window) -- viewport=None + --start-maximized makes Chrome size
+    # itself to the actual screen. In headless mode there's no visible window
+    # to maximize, so keep a fixed viewport as before.
+    if config.HEADLESS:
+        launch_kwargs = dict(viewport={"width": 1440, "height": 900})
+    else:
+        launch_kwargs = dict(viewport=None)
 
-    # This CLI call doesn't start a second process -- Chrome detects the
-    # already-running instance via its SingletonLock and hands the request
-    # off to it, then this subprocess exits almost immediately.
-    subprocess.run(
-        [
-            config.CHROME_EXECUTABLE,
-            f"--user-data-dir={config.CHROME_USER_DATA_DIR}",
+    context = _playwright().chromium.launch_persistent_context(
+        config.CHROME_USER_DATA_DIR,
+        headless=config.HEADLESS,
+        executable_path=config.CHROME_EXECUTABLE,
+        args=[
             f"--profile-directory={chrome_profile}",
-            "--new-window",
-            account["url"],
+            "--disable-blink-features=AutomationControlled",
+            "--start-maximized",
+            "--no-first-run",
+            "--no-default-browser-check",
         ],
-        timeout=15,
+        **launch_kwargs,
     )
-
-    page = _wait_for_new_page(browser, before_ids, account["url"])
-    if page is None:
-        raise StepFailed(
-            f"Timed out waiting for the {platform}/{lang} window to open "
-            f"(chrome_profile={chrome_profile!r}, url={account['url']!r}). "
-            f"The running Chrome process may not have handed off correctly."
-        )
-
+    page = context.pages[0] if context.pages else context.new_page()
+    page.goto(account["url"], wait_until="domcontentloaded")
     human.wait(config.LOAD_WAIT_SEC, config.LOAD_WAIT_SEC + 2)
     _dismiss_browser_warning(page)
     return page
@@ -242,15 +179,14 @@ def _dismiss_browser_warning(page):
 
 def close_account(page):
     """
-    Closes just this job's window/page. NOT page.context.close() anymore --
-    since open_account() now attaches to the VM's one shared long-running
-    Chrome process over CDP, page.context is the browser's shared default
-    context (holding every other open window too, including the human's
-    own), not a dedicated per-job context. Closing the context would close
-    everything in the whole browser, not just this job's window.
+    Closes the persistent context opened by open_account(). Safe to close
+    the whole context now (unlike the brief CDP-attach experiment) -- each
+    job gets its own dedicated Chrome process against the automation-only
+    profile copy, not a window inside some other shared/long-running
+    process, so nothing else is affected.
     """
     try:
-        page.close()
+        page.context.close()
     except Exception:
         pass
     human.wait(1, 2)
