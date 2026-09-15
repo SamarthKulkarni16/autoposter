@@ -3,6 +3,7 @@ config.py
 """
 
 import os
+import shutil
 from pathlib import Path
 
 BASE_DIR = Path(__file__).parent
@@ -17,18 +18,28 @@ OUTBOX_DIR = BASE_DIR / "outbox"
 # needed its own from-scratch manual login/cookie setup, and -- for
 # Pinterest/Facebook -- a whole separate H.264-capable snap-chromium
 # workaround since Playwright's bundled Chromium has no proprietary codec
-# support), Playwright now drives the SAME real "google-chrome" binary and
+# support), Playwright now drives the SAME real "google-chrome" process and
 # user-data-dir the desktop session uses, selecting the right account via
 # Chrome's own --profile-directory flag. This means:
 #   - one login per Google/email account total, not one per (platform, lang)
 #   - real Chrome decodes H.264 natively, so the Pinterest/Facebook
 #     client-side-decode problem (see git history) no longer applies -- no
 #     snap chromium needed for any platform
-# CHROME_USER_DATA_DIR / CHROME_EXECUTABLE below mirror the exact values
-# oracle-vm-setup's keepalive.sh already uses successfully against these
-# same profiles.
+#
+# IMPORTANT (learned live, see engine.py open_account docstring): real Chrome
+# allows only ONE running process per user-data-dir, full stop --
+# --profile-directory only picks which profile a NEW WINDOW opens within
+# THAT one shared process, it does not let two independent processes coexist.
+# So Playwright can't launch_persistent_context() a fresh process per job the
+# way it could against its own bundled Chromium -- it has to instead attach
+# via CDP to the one long-running Chrome process (started once, kept alive,
+# with --remote-debugging-port enabled -- see oracle-vm-setup's
+# restart-chrome-debug-port.yml workflow) and ask THAT process to open each
+# job's window, the same "hand off to already-running instance" mechanism
+# keepalive.sh already relied on.
 CHROME_USER_DATA_DIR = os.path.expanduser("~/.config/google-chrome")
-import shutil
+CHROME_DEBUG_PORT = 9333
+CHROME_CDP_URL = f"http://127.0.0.1:{CHROME_DEBUG_PORT}"
 
 # Playwright's executable_path is passed straight to the OS process launcher,
 # not through a shell -- it does NOT do a $PATH lookup the way typing
